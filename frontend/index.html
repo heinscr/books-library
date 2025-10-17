@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Digital Library</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Leather-bound header -->
+    <div class="header">
+        <div class="header-content">
+            <h1>📚 The Digital Library</h1>
+            
+            <div class="auth-widget">
+                <!-- Login form (shown when not authenticated) -->
+                <div id="loginForm" class="login-form">
+                    <input type="email" id="email" placeholder="Email" autocomplete="email">
+                    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+                    <button class="login-btn" onclick="login()">Enter</button>
+                </div>
+                
+                <!-- User avatar (shown when authenticated) -->
+                <div id="userAvatar" class="user-avatar" style="display: none;" onclick="toggleUserMenu()">
+                    <span id="avatarInitial">U</span>
+                </div>
+                
+                <!-- User dropdown menu -->
+                <div id="userMenu" class="user-menu">
+                    <div class="user-menu-header">
+                        <div style="font-weight: 600; margin-bottom: 8px; color: #f4e8d0;">Signed in as</div>
+                        <div class="user-menu-email" id="menuEmail"></div>
+                    </div>
+                    <div class="user-menu-item logout" onclick="logout()">
+                        <span>🚪</span>
+                        <span>Logout</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="container">
+        <span id="loading" class="loading" style="display: none;">
+            <span class="spinner"></span>
+            <span>Loading collection...</span>
+        </span>
+        
+        <div id="alert" class="alert"></div>
+        
+        <div id="booksContainer"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

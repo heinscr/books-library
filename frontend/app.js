@@ -1,0 +1,366 @@
+// Cognito configuration
+const COGNITO_CONFIG = {
+    userPoolId: 'us-east-1_7RUbNyZe8',
+    clientId: '4s3ffigml0qellh579al1oqifu',
+    region: 'us-east-1'
+};
+
+const API_URL = 'https://c8b0ym37ph.execute-api.us-east-1.amazonaws.com/Prod/books';
+
+// Check if user is already logged in
+window.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('idToken');
+    const email = localStorage.getItem('userEmail');
+    if (token && email) {
+        showLoggedInState(email);
+        // Auto-load books on page load if already logged in
+        fetchBooks();
+    }
+    
+    // Close user menu when clicking outside
+    document.addEventListener('click', (e) => {
+        const userMenu = document.getElementById('userMenu');
+        const userAvatar = document.getElementById('userAvatar');
+        if (!userMenu.contains(e.target) && !userAvatar.contains(e.target)) {
+            userMenu.classList.remove('show');
+        }
+    });
+    
+    // Allow enter key to submit login
+    document.getElementById('email').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') login();
+    });
+    document.getElementById('password').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') login();
+    });
+});
+
+function toggleUserMenu() {
+    const menu = document.getElementById('userMenu');
+    menu.classList.toggle('show');
+}
+
+async function login() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const alertDiv = document.getElementById('alert');
+
+    if (!email || !password) {
+        showAlert('Please enter email and password', 'error');
+        return;
+    }
+
+    // Disable login button during request
+    const loginBtn = document.querySelector('.login-btn');
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Logging in...';
+
+    try {
+        const authUrl = `https://cognito-idp.${COGNITO_CONFIG.region}.amazonaws.com/`;
+        
+        const authData = {
+            AuthFlow: 'USER_PASSWORD_AUTH',
+            ClientId: COGNITO_CONFIG.clientId,
+            AuthParameters: {
+                USERNAME: email,
+                PASSWORD: password
+            }
+        };
+
+        const response = await fetch(authUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-amz-json-1.1',
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth'
+            },
+            body: JSON.stringify(authData)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.AuthenticationResult) {
+            // Store tokens
+            localStorage.setItem('idToken', data.AuthenticationResult.IdToken);
+            localStorage.setItem('accessToken', data.AuthenticationResult.AccessToken);
+            localStorage.setItem('refreshToken', data.AuthenticationResult.RefreshToken);
+            localStorage.setItem('userEmail', email);
+
+            showLoggedInState(email);
+            showAlert('✅ Login successful!', 'success');
+            
+            // Clear password field
+            document.getElementById('password').value = '';
+            
+            // Auto-load books after successful login
+            setTimeout(() => fetchBooks(), 500);
+        } else {
+            throw new Error(data.message || 'Invalid credentials');
+        }
+    } catch (error) {
+        showAlert(`❌ Login failed: ${error.message}`, 'error');
+        console.error('Login error:', error);
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+    }
+}
+
+function logout() {
+    localStorage.removeItem('idToken');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userEmail');
+    
+    showLoggedOutState();
+    document.getElementById('userMenu').classList.remove('show');
+    document.getElementById('booksContainer').innerHTML = '';
+    showAlert('Logged out successfully', 'success');
+}
+
+function showLoggedInState(email) {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('userAvatar').style.display = 'flex';
+    document.getElementById('menuEmail').textContent = email;
+    
+    // Set avatar initial (first letter of email)
+    const initial = email.charAt(0).toUpperCase();
+    document.getElementById('avatarInitial').textContent = initial;
+}
+
+function showLoggedOutState() {
+    document.getElementById('loginForm').style.display = 'flex';
+    document.getElementById('userAvatar').style.display = 'none';
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.getElementById('alert');
+    alertDiv.className = `alert ${type}`;
+    alertDiv.textContent = message;
+    alertDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        alertDiv.style.display = 'none';
+    }, 5000);
+}
+
+async function fetchBooks() {
+    const booksContainer = document.getElementById('booksContainer');
+    const loadingSpinner = document.getElementById('loading');
+    
+    const token = localStorage.getItem('idToken');
+    if (!token) {
+        showAlert('Please login first', 'error');
+        return;
+    }
+
+    // Reset and show loading
+    booksContainer.innerHTML = '';
+    loadingSpinner.style.display = 'inline-flex';
+
+    try {
+        const response = await fetch(API_URL, {
+            headers: {
+                'Authorization': token
+            }
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            throw new Error('Authentication expired. Please login again.');
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const books = await response.json();
+        
+        if (books.length === 0) {
+            booksContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📚</div>
+                    <h3>No books found</h3>
+                    <p>Your library is empty.</p>
+                </div>
+            `;
+        } else {
+            // Display books in grid
+            const booksGrid = document.createElement('div');
+            booksGrid.className = 'books-grid';
+            
+            books.forEach(book => {
+                const bookCard = document.createElement('div');
+                bookCard.className = 'book-card';
+                
+                // Check if book is marked as read
+                const isRead = isBookRead(book.name);
+                if (isRead) {
+                    bookCard.classList.add('read');
+                }
+                
+                // Format file size
+                const sizeInMB = (book.size / (1024 * 1024)).toFixed(2);
+                
+                // Format date
+                const date = new Date(book.lastModified);
+                const formattedDate = date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                
+                bookCard.innerHTML = `
+                    <div class="book-header">
+                        <div class="book-name">${escapeHtml(book.name)}</div>
+                        <div class="read-toggle ${isRead ? 'read' : ''}" onclick="toggleReadStatus('${escapeHtml(book.name)}', event)" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                            ${isRead ? '✓' : '○'}
+                        </div>
+                    </div>
+                    <div class="book-meta">
+                        <div class="book-size">📦 ${sizeInMB} MB</div>
+                        <div class="book-date">📅 ${formattedDate}</div>
+                    </div>
+                    <div class="book-download">
+                        <span class="download-icon">⬇️</span>
+                    </div>
+                `;
+                
+                // Add click handler for download (but not on the read toggle)
+                bookCard.addEventListener('click', (e) => {
+                    if (!e.target.closest('.read-toggle')) {
+                        downloadBook(book.name);
+                    }
+                });
+                
+                booksGrid.appendChild(bookCard);
+            });
+            
+            booksContainer.appendChild(booksGrid);
+            showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+        }
+        
+    } catch (error) {
+        showAlert(`❌ Error: ${error.message}`, 'error');
+        console.error('Error fetching books:', error);
+        
+        // If auth error, logout
+        if (error.message.includes('Authentication expired')) {
+            setTimeout(() => logout(), 2000);
+        }
+    } finally {
+        // Hide loading
+        loadingSpinner.style.display = 'none';
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Read status management (stored in localStorage)
+function getReadBooks() {
+    const readBooks = localStorage.getItem('readBooks');
+    return readBooks ? JSON.parse(readBooks) : [];
+}
+
+function isBookRead(bookName) {
+    const readBooks = getReadBooks();
+    return readBooks.includes(bookName);
+}
+
+function toggleReadStatus(bookName, event) {
+    event.stopPropagation(); // Prevent download trigger
+    
+    const readBooks = getReadBooks();
+    const index = readBooks.indexOf(bookName);
+    const isNowRead = index === -1;
+    
+    if (index > -1) {
+        // Remove from read list
+        readBooks.splice(index, 1);
+    } else {
+        // Add to read list
+        readBooks.push(bookName);
+    }
+    
+    localStorage.setItem('readBooks', JSON.stringify(readBooks));
+    
+    // Update UI without reloading
+    const toggleButton = event.target.closest('.read-toggle');
+    const bookCard = event.target.closest('.book-card');
+    
+    if (isNowRead) {
+        toggleButton.classList.add('read');
+        toggleButton.innerHTML = '✓';
+        toggleButton.title = 'Mark as unread';
+        bookCard.classList.add('read');
+    } else {
+        toggleButton.classList.remove('read');
+        toggleButton.innerHTML = '○';
+        toggleButton.title = 'Mark as read';
+        bookCard.classList.remove('read');
+    }
+}
+
+async function downloadBook(bookName) {
+    const token = localStorage.getItem('idToken');
+    if (!token) {
+        showAlert('Please login first', 'error');
+        return;
+    }
+
+    try {
+        // Show loading state
+        showAlert(`📥 Preparing download for ${bookName}...`, 'success');
+        
+        // Encode the book name for the URL
+        const encodedBookName = encodeURIComponent(bookName);
+        
+        // Fetch presigned URL from API
+        const response = await fetch(`${API_URL}/${encodedBookName}`, {
+            headers: {
+                'Authorization': token
+            }
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            throw new Error('Authentication expired. Please login again.');
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Open the presigned URL in a new window to trigger download
+        const link = document.createElement('a');
+        link.href = data.downloadUrl;
+        link.download = bookName;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showAlert(`✅ Download started for ${bookName}`, 'success');
+        
+    } catch (error) {
+        showAlert(`❌ Download failed: ${error.message}`, 'error');
+        console.error('Error downloading book:', error);
+        
+        // If auth error, logout
+        if (error.message.includes('Authentication expired')) {
+            setTimeout(() => logout(), 2000);
+        }
+    }
+}

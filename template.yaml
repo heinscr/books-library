@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless Books Library API with Cognito authentication - Lists and downloads books from S3
+
+Parameters:
+  CognitoUserPoolId:
+    Type: String
+    Description: Cognito User Pool ID
+    Default: us-east-1_7RUbNyZe8
+  
+  CognitoUserPoolArn:
+    Type: String
+    Description: Cognito User Pool ARN
+    Default: arn:aws:cognito-idp:us-east-1:918213481336:userpool/us-east-1_7RUbNyZe8
+
+Resources:
+  BooksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.list_handler
+      Runtime: python3.12
+      CodeUri: gateway_backend/
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          BUCKET_NAME: crackpow
+          BOOKS_PREFIX: books/
+      Policies:
+        - S3ReadPolicy:
+            BucketName: crackpow
+      Events:
+        BooksApi:
+          Type: Api
+          Properties:
+            Path: /books
+            Method: get
+            RestApiId: !Ref BooksApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  GetBookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.get_book_handler
+      Runtime: python3.12
+      CodeUri: gateway_backend/
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          BUCKET_NAME: crackpow
+          BOOKS_PREFIX: books/
+      Policies:
+        - S3ReadPolicy:
+            BucketName: crackpow
+      Events:
+        GetBookApi:
+          Type: Api
+          Properties:
+            Path: /books/{id}
+            Method: get
+            RestApiId: !Ref BooksApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  BooksApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,OPTIONS'"
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Ref CognitoUserPoolArn
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${BooksApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  
+  UserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref CognitoUserPoolId
+  
+  UserPoolClientId:
+    Description: "Cognito User Pool Client ID"
+    Value: 4s3ffigml0qellh579al1oqifu
