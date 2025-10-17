@@ -12,9 +12,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('idToken');
     const email = localStorage.getItem('userEmail');
     if (token && email) {
-        showLoggedInState(email);
-        // Auto-load books on page load if already logged in
-        fetchBooks();
+        // Check if token is expired or about to expire
+        checkAndRefreshToken().then(isValid => {
+            if (isValid) {
+                showLoggedInState(email);
+                // Auto-load books on page load if already logged in
+                fetchBooks();
+            } else {
+                // Token expired and couldn't refresh, show login
+                logout();
+            }
+        });
     }
     
     // Close user menu when clicking outside
@@ -34,6 +42,111 @@ window.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') login();
     });
 });
+
+// Check if token needs refresh and refresh if necessary
+async function checkAndRefreshToken() {
+    const tokenExpiration = localStorage.getItem('tokenExpiration');
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    if (!tokenExpiration || !refreshToken) {
+        return false;
+    }
+    
+    const expirationTime = parseInt(tokenExpiration);
+    const now = Date.now();
+    const timeUntilExpiry = expirationTime - now;
+    
+    // If token expires in less than 5 minutes, refresh it
+    if (timeUntilExpiry < 5 * 60 * 1000) {
+        return await refreshAuthToken();
+    }
+    
+    // Token is still valid, schedule refresh
+    scheduleTokenRefresh();
+    return true;
+}
+
+// Refresh the authentication token using refresh token
+async function refreshAuthToken() {
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    if (!refreshToken) {
+        return false;
+    }
+    
+    try {
+        const authUrl = `https://cognito-idp.${COGNITO_CONFIG.region}.amazonaws.com/`;
+        
+        const refreshData = {
+            AuthFlow: 'REFRESH_TOKEN_AUTH',
+            ClientId: COGNITO_CONFIG.clientId,
+            AuthParameters: {
+                REFRESH_TOKEN: refreshToken
+            }
+        };
+
+        const response = await fetch(authUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-amz-json-1.1',
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth'
+            },
+            body: JSON.stringify(refreshData)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.AuthenticationResult) {
+            // Update tokens
+            const expiresIn = data.AuthenticationResult.ExpiresIn || 3600;
+            const expirationTime = Date.now() + (expiresIn * 1000);
+            
+            localStorage.setItem('idToken', data.AuthenticationResult.IdToken);
+            localStorage.setItem('accessToken', data.AuthenticationResult.AccessToken);
+            localStorage.setItem('tokenExpiration', expirationTime);
+            
+            // Schedule next refresh
+            scheduleTokenRefresh();
+            
+            console.log('Token refreshed successfully');
+            return true;
+        } else {
+            console.error('Token refresh failed:', data);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        return false;
+    }
+}
+
+// Schedule automatic token refresh before expiration
+function scheduleTokenRefresh() {
+    // Clear any existing timer
+    if (window.tokenRefreshTimer) {
+        clearTimeout(window.tokenRefreshTimer);
+    }
+    
+    const tokenExpiration = localStorage.getItem('tokenExpiration');
+    if (!tokenExpiration) {
+        return;
+    }
+    
+    const expirationTime = parseInt(tokenExpiration);
+    const now = Date.now();
+    const timeUntilExpiry = expirationTime - now;
+    
+    // Refresh 5 minutes before expiration
+    const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 0);
+    
+    window.tokenRefreshTimer = setTimeout(async () => {
+        const success = await refreshAuthToken();
+        if (!success) {
+            showAlert('⚠️ Session expired. Please log in again.', 'error');
+            logout();
+        }
+    }, refreshTime);
+}
 
 function toggleUserMenu() {
     const menu = document.getElementById('userMenu');
@@ -79,14 +192,21 @@ async function login() {
         const data = await response.json();
 
         if (response.ok && data.AuthenticationResult) {
-            // Store tokens
+            // Store tokens and expiration time
+            const expiresIn = data.AuthenticationResult.ExpiresIn || 3600; // Default 1 hour
+            const expirationTime = Date.now() + (expiresIn * 1000);
+            
             localStorage.setItem('idToken', data.AuthenticationResult.IdToken);
             localStorage.setItem('accessToken', data.AuthenticationResult.AccessToken);
             localStorage.setItem('refreshToken', data.AuthenticationResult.RefreshToken);
+            localStorage.setItem('tokenExpiration', expirationTime);
             localStorage.setItem('userEmail', email);
 
             showLoggedInState(email);
             showAlert('✅ Login successful!', 'success');
+            
+            // Start token refresh timer
+            scheduleTokenRefresh();
             
             // Clear password field
             document.getElementById('password').value = '';
@@ -108,7 +228,13 @@ function logout() {
     localStorage.removeItem('idToken');
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('tokenExpiration');
     localStorage.removeItem('userEmail');
+    
+    // Clear any scheduled token refresh
+    if (window.tokenRefreshTimer) {
+        clearTimeout(window.tokenRefreshTimer);
+    }
     
     showLoggedOutState();
     document.getElementById('userMenu').classList.remove('show');
@@ -165,7 +291,17 @@ async function fetchBooks() {
         });
         
         if (response.status === 401 || response.status === 403) {
-            throw new Error('Authentication expired. Please login again.');
+            // Try to refresh token and retry
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+                // Retry with new token
+                return fetchBooks();
+            } else {
+                // Refresh failed, logout
+                showAlert('⚠️ Session expired. Please log in again.', 'error');
+                setTimeout(() => logout(), 2000);
+                return;
+            }
         }
         
         if (!response.ok) {
@@ -333,7 +469,17 @@ async function downloadBook(bookName) {
         });
         
         if (response.status === 401 || response.status === 403) {
-            throw new Error('Authentication expired. Please login again.');
+            // Try to refresh token and retry
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+                // Retry download with new token
+                return downloadBook(bookName);
+            } else {
+                // Refresh failed, logout
+                showAlert('⚠️ Session expired. Please log in again.', 'error');
+                setTimeout(() => logout(), 2000);
+                return;
+            }
         }
         
         if (!response.ok) {
@@ -357,10 +503,5 @@ async function downloadBook(bookName) {
     } catch (error) {
         showAlert(`❌ Download failed: ${error.message}`, 'error');
         console.error('Error downloading book:', error);
-        
-        // If auth error, logout
-        if (error.message.includes('Authentication expired')) {
-            setTimeout(() => logout(), 2000);
-        }
     }
 }
