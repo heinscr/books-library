@@ -94,6 +94,39 @@
         </div>
     </div>
 
+    <!-- Book Details Modal -->
+    <div id="bookDetailsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Book Details</h2>
+                <button class="close-btn" onclick="closeBookDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="details-group">
+                    <label>Title:</label>
+                    <div class="detail-value" id="detailTitle"></div>
+                </div>
+                <div class="details-group">
+                    <label>Date Added:</label>
+                    <div class="detail-value" id="detailDate"></div>
+                </div>
+                <div class="details-group">
+                    <label>File Size:</label>
+                    <div class="detail-value" id="detailSize"></div>
+                </div>
+                <div class="form-group">
+                    <label for="editAuthor">Author:</label>
+                    <input type="text" id="editAuthor" placeholder="Enter author name" maxlength="500">
+                    <div class="field-hint">You can edit the author name and save changes</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeBookDetailsModal()">Cancel</button>
+                <button class="btn-primary" id="saveDetailsButton" onclick="saveBookDetails()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
