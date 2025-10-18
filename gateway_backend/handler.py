@@ -418,7 +418,7 @@ def s3_trigger_handler(event, context):
             s3_size = s3_info.get('object', {}).get('size', 0)
             
             if not bucket_name or not s3_key:
-                print(f"Invalid S3 event record: {record}")
+                logger.warning(f"Invalid S3 event record: {record}")
                 continue
             
             # Extract filename from S3 key
@@ -457,9 +457,9 @@ def s3_trigger_handler(event, context):
             # Put item in DynamoDB
             try:
                 books_table.put_item(Item=item)
-                print(f"Successfully added book to DynamoDB: {book_id}")
+                logger.info(f"Successfully added book to DynamoDB: {book_id}")
             except ClientError as e:
-                print(f"Error adding book to DynamoDB: {str(e)}")
+                logger.error(f"Error adding book to DynamoDB: {str(e)}")
                 # Continue processing other records even if one fails
                 continue
         
@@ -469,7 +469,7 @@ def s3_trigger_handler(event, context):
         }
         
     except Exception as e:
-        print(f"Error processing S3 trigger: {str(e)}")
+        logger.error(f"Error processing S3 trigger: {str(e)}", exc_info=True)
         # For S3 triggers, we should return success even on error to prevent retries
         # Errors are logged to CloudWatch
         return {
