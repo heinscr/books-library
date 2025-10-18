@@ -998,8 +998,8 @@ async function saveBookDetails() {
             allBooks[bookIndex] = { ...allBooks[bookIndex], author: updatedBook.author };
         }
         
-        // Re-render just the updated book card
-        renderBooks(allBooks);
+        // Re-render with current filter state preserved
+        applyFilters();
         
         showAlert('✅ Author updated successfully', 'success');
         closeBookDetailsModal();
@@ -1066,8 +1066,8 @@ async function deleteBook() {
         // Remove the book from local allBooks array
         allBooks = allBooks.filter(b => b.id !== currentEditingBook.id);
         
-        // Re-render books
-        renderBooks(allBooks);
+        // Re-render with current filter state preserved
+        applyFilters();
         
         showAlert('✅ Book deleted successfully', 'success');
         closeBookDetailsModal();
