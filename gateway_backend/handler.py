@@ -1,13 +1,14 @@
 """
 Lambda handlers for Books API
 
-This module provides six Lambda handlers for the Books Library application:
+This module provides seven Lambda handlers for the Books Library application:
 1. list_handler: Lists all books from DynamoDB
 2. get_book_handler: Gets book metadata and generates presigned S3 download URL
-3. update_book_handler: Updates book metadata (e.g., read status)
-4. upload_handler: Generates presigned S3 upload URL for authenticated users
-5. set_upload_metadata_handler: Sets author metadata after upload completes
-6. s3_trigger_handler: Auto-populates DynamoDB when books are uploaded to S3
+3. update_book_handler: Updates book metadata (e.g., read status, author)
+4. delete_book_handler: Deletes book from both DynamoDB and S3
+5. upload_handler: Generates presigned S3 upload URL for authenticated users
+6. set_upload_metadata_handler: Sets author metadata after upload completes
+7. s3_trigger_handler: Auto-populates DynamoDB when books are uploaded to S3
 
 Architecture:
 - API Gateway → Lambda → DynamoDB (for metadata)
@@ -57,7 +58,7 @@ def _response(status_code: int, body: Any) -> dict:
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
+            "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
         },
     }
 
@@ -612,6 +613,115 @@ def set_upload_metadata_handler(event, context):
         
     except Exception as e:
         logger.error(f"Error setting upload metadata: {str(e)}", exc_info=True)
+        return _response(500, {
+            'error': 'Internal Server Error',
+            'message': str(e)
+        })
+
+
+def delete_book_handler(event, context):
+    """
+    Lambda handler to delete a book from both DynamoDB and S3
+    Expects book ID in path parameter 'id'
+    
+    Deletes:
+    1. DynamoDB record with book metadata
+    2. S3 object (the .zip file)
+    
+    Returns success/failure status
+    """
+    logger.info("delete_book_handler invoked")
+    
+    try:
+        # Verify user is authenticated
+        authorizer = event.get('requestContext', {}).get('authorizer', {})
+        claims = authorizer.get('claims', {})
+        user_email = claims.get('email', 'unknown')
+        
+        logger.info(f"Delete request from user: {user_email}")
+        
+        # Get the book ID from path parameters
+        path_parameters = event.get('pathParameters', {})
+        if not path_parameters or 'id' not in path_parameters:
+            logger.warning("Missing book ID in path parameters")
+            return _response(400, {
+                'error': 'Bad Request',
+                'message': 'Book ID is required in path'
+            })
+        
+        book_id = unquote(path_parameters['id'])
+        logger.info(f"Deleting book: {book_id}")
+        
+        # First, get the book record to find the S3 URL
+        try:
+            response = books_table.get_item(Key={'id': book_id})
+            if 'Item' not in response:
+                logger.warning(f"Book not found: {book_id}")
+                return _response(404, {
+                    'error': 'Not Found',
+                    'message': f'Book with id "{book_id}" not found'
+                })
+            
+            book_item = response['Item']
+            s3_url = book_item.get('s3_url')
+            
+        except ClientError as e:
+            logger.error(f"DynamoDB error: {str(e)}", exc_info=True)
+            return _response(500, {
+                'error': 'Database Error',
+                'message': str(e)
+            })
+        
+        # Delete from S3 if S3 URL exists
+        if s3_url:
+            try:
+                # Parse S3 URL to get bucket and key
+                # Format: s3://bucket-name/path/to/object
+                parsed_url = urlparse(s3_url)
+                bucket = parsed_url.netloc
+                s3_key = parsed_url.path.lstrip('/')
+                
+                logger.info(f"Deleting S3 object: s3://{bucket}/{s3_key}")
+                
+                s3_client.delete_object(
+                    Bucket=bucket,
+                    Key=s3_key
+                )
+                
+                logger.info(f"Successfully deleted S3 object: {s3_key}")
+                
+            except ClientError as e:
+                # Log error but continue with DynamoDB deletion
+                logger.error(f"S3 deletion error: {str(e)}", exc_info=True)
+                # Don't fail the entire operation if S3 delete fails
+        else:
+            logger.warning(f"No S3 URL found for book: {book_id}")
+        
+        # Delete from DynamoDB
+        try:
+            books_table.delete_item(
+                Key={'id': book_id},
+                ConditionExpression='attribute_exists(id)'
+            )
+            
+            logger.info(f"Successfully deleted DynamoDB record: {book_id}")
+            
+            return _response(200, {
+                'message': 'Book deleted successfully',
+                'bookId': book_id
+            })
+            
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+                logger.warning(f"Book not found during deletion: {book_id}")
+                return _response(404, {
+                    'error': 'Not Found',
+                    'message': f'Book with id "{book_id}" not found'
+                })
+            raise
+        
+    except Exception as e:
+        logger.error(f"Error deleting book: {str(e)}", exc_info=True)
         return _response(500, {
             'error': 'Internal Server Error',
             'message': str(e)

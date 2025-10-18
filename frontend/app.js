@@ -1012,3 +1012,70 @@ async function saveBookDetails() {
         saveButton.textContent = 'Save Changes';
     }
 }
+
+async function deleteBook() {
+    if (!currentEditingBook) {
+        showAlert('❌ No book selected', 'error');
+        return;
+    }
+    
+    // Confirmation dialog
+    const bookName = currentEditingBook.name || 'this book';
+    const confirmMessage = `⚠️ Are you sure you want to delete "${bookName}"?\n\nThis action is PERMANENT and cannot be undone.\n\nThe book will be removed from both the database and storage.`;
+    
+    if (!confirm(confirmMessage)) {
+        return; // User cancelled
+    }
+    
+    const token = localStorage.getItem('idToken');
+    if (!token) {
+        showAlert('❌ Not authenticated. Please log in.', 'error');
+        return;
+    }
+    
+    const deleteButton = document.getElementById('deleteBookButton');
+    
+    try {
+        // Disable delete button
+        deleteButton.disabled = true;
+        deleteButton.textContent = 'Deleting...';
+        
+        // Call DELETE /books/{id}
+        const bookId = encodeURIComponent(currentEditingBook.id);
+        const response = await fetch(`${API_URL}/${bookId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': token
+            }
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+                return deleteBook(); // Retry with new token
+            } else {
+                throw new Error('Session expired. Please log in again.');
+            }
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        // Remove the book from local allBooks array
+        allBooks = allBooks.filter(b => b.id !== currentEditingBook.id);
+        
+        // Re-render books
+        renderBooks(allBooks);
+        
+        showAlert('✅ Book deleted successfully', 'success');
+        closeBookDetailsModal();
+        
+    } catch (error) {
+        showAlert(`❌ Failed to delete: ${error.message}`, 'error');
+        console.error('Error deleting book:', error);
+        deleteButton.disabled = false;
+        deleteButton.textContent = '🗑️ Delete Book';
+    }
+}

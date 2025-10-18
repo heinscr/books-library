@@ -679,6 +679,34 @@ body {
     background: #e9ecef;
 }
 
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.modal-footer-right {
+    display: flex;
+    gap: 12px;
+}
+
 /* Book details modal specific styles */
 .details-group {
     margin-bottom: 20px;
