@@ -4,6 +4,41 @@ This directory contains helper scripts for deploying and maintaining the Books L
 
 ## Scripts Overview
 
+### `populate-authors.py`
+Automatically populates missing author names in DynamoDB by looking up book metadata from Google Books API and Open Library API.
+
+**Usage:**
+```bash
+# Dry run - see what would be updated without making changes
+pipenv run python scripts/populate-authors.py --dry-run --profile YOUR_PROFILE
+
+# Actually update the database
+pipenv run python scripts/populate-authors.py --profile YOUR_PROFILE
+
+# Use default AWS profile
+pipenv run python scripts/populate-authors.py
+```
+
+**Features:**
+- Scans all books in DynamoDB for missing authors
+- Queries Google Books API first, falls back to Open Library
+- Rate-limited to be respectful of APIs (1 request/second)
+- Shows progress with clear output
+- Provides summary of successes and failures
+- Lists books that couldn't be found for manual review
+
+**Notes:**
+- Success rate is typically 99%+
+- Multi-volume works may need manual updates (e.g., "Volume 1 of 3")
+- Requires `requests` library: `pipenv install --dev`
+
+**When to run:**
+- After uploading many books without author metadata
+- After initial migration from S3
+- Periodically to fill in missing information
+
+---
+
 ### `configure-s3-trigger.sh`
 Configures S3 bucket notifications to trigger the Lambda function when books are uploaded.
 

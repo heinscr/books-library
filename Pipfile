@@ -16,3 +16,4 @@ pytest = "*"
 black = "*"
 ruff = "*"
 mypy = "*"
+requests = "*"  # For populate-authors.py script
