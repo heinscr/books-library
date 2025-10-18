@@ -964,3 +964,189 @@ def test_delete_book_handler_dynamodb_not_found_on_delete():
     assert resp["statusCode"] == 404
     body = json.loads(resp["body"])
     assert "not found" in body["message"]
+
+
+def test_get_book_handler_with_apostrophe_in_id():
+    """Test get_book_handler with apostrophe in book ID"""
+
+    book_id = "Roald Dahl's Cookbook.epub"
+    event = {"pathParameters": {"id": book_id}}
+
+    # Mock presigned URL with URL-encoded apostrophe
+    mock_url = f"https://s3.amazonaws.com/test-bucket/books/Roald%20Dahl%27s%20Cookbook.epub?signed=true"
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": book_id,
+            "name": "Roald Dahl's Cookbook.epub",
+            "size": Decimal("1500000"),
+            "created": "2024-01-15T10:00:00Z",
+            "read": False,
+            "s3_url": f"s3://test-bucket/books/{book_id}",
+        }
+    }
+
+    with (
+        patch.object(handler, "books_table", mock_table),
+        patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_url),
+    ):
+        resp = handler.get_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["id"] == book_id
+    assert body["name"] == "Roald Dahl's Cookbook.epub"
+    assert "'" in body["id"]  # Verify apostrophe is preserved
+
+
+def test_update_book_handler_with_apostrophe_in_id():
+    """Test update_book_handler with apostrophe in book ID"""
+
+    book_id = "Roald Dahl's Cookbook.epub"
+    event = {
+        "pathParameters": {"id": book_id},
+        "body": json.dumps({"read": True}),
+    }
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": book_id,
+            "name": "Roald Dahl's Cookbook.epub",
+            "read": False,
+        }
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": {
+            "id": book_id,
+            "name": "Roald Dahl's Cookbook.epub",
+            "read": True,
+        }
+    }
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["id"] == book_id
+    assert body["read"] is True
+
+    # Verify update_item was called with correct key
+    mock_table.update_item.assert_called_once()
+    call_kwargs = mock_table.update_item.call_args[1]
+    assert call_kwargs["Key"]["id"] == book_id
+
+
+def test_update_book_handler_with_quotes_in_id():
+    """Test update_book_handler with quotes in book ID"""
+
+    book_id = 'The "Best" Book Ever.pdf'
+    event = {
+        "pathParameters": {"id": book_id},
+        "body": json.dumps({"read": True}),
+    }
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": book_id,
+            "name": 'The "Best" Book Ever.pdf',
+            "read": False,
+        }
+    }
+    mock_table.update_item.return_value = {
+        "Attributes": {
+            "id": book_id,
+            "name": 'The "Best" Book Ever.pdf',
+            "read": True,
+        }
+    }
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["id"] == book_id
+    assert '"' in body["id"]  # Verify quotes are preserved
+
+
+def test_delete_book_handler_with_apostrophe_in_id():
+    """Test delete_book_handler with apostrophe in book ID"""
+
+    book_id = "Roald Dahl's Cookbook.epub"
+    event = {
+        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
+        "pathParameters": {"id": book_id},
+    }
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": book_id,
+            "name": "Roald Dahl's Cookbook.epub",
+            "s3_url": f"s3://test-bucket/books/{book_id}",
+        }
+    }
+
+    mock_s3_delete = Mock()
+
+    with (
+        patch.object(handler, "books_table", mock_table),
+        patch.object(handler.s3_client, "delete_object", mock_s3_delete),
+    ):
+        resp = handler.delete_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "deleted successfully" in body["message"]
+
+    # Verify S3 delete was called with correct key
+    mock_s3_delete.assert_called_once()
+    call_kwargs = mock_s3_delete.call_args[1]
+    assert call_kwargs["Key"] == f"books/{book_id}"
+
+
+def test_s3_trigger_handler_with_special_characters():
+    """Test s3_trigger_handler with special characters in filename"""
+
+    # Filename with apostrophe, dash, and parentheses
+    # Handler will parse "Author - Title" format
+    filename = "Roald Dahl's Cookbook - 2nd Edition (2024).epub"
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {
+                        "key": f"books/{filename}",
+                        "size": 2500000,
+                    },
+                },
+                "eventTime": "2024-01-15T10:30:00.000Z",
+            }
+        ]
+    }
+
+    mock_table = Mock()
+
+    with patch.object(handler, "books_table", mock_table):
+        handler.s3_trigger_handler(event, None)
+
+    # Verify put_item was called
+    mock_table.put_item.assert_called_once()
+    item = mock_table.put_item.call_args[1]["Item"]
+
+    # Verify special characters are preserved in ID
+    assert item["id"] == filename
+    assert "'" in item["id"]
+    
+    # Handler extracts author from "Author - Title" format
+    assert item["author"] == "Roald Dahl's Cookbook"
+    assert item["name"] == "2nd Edition (2024).epub"
+    
+    # Verify parentheses are preserved in name
+    assert "(" in item["name"]
+    assert ")" in item["name"]
