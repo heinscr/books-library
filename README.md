@@ -391,15 +391,15 @@ Sets metadata (author) on a book after S3 upload completes.
 
 ## 🧪 Testing & Code Quality
 
-**Comprehensive test coverage** with 42 unit tests covering all Lambda handlers.
+**Comprehensive test coverage** with 47 backend unit tests and E2E frontend tests.
 
-### Running Tests
+### Backend Unit Tests
 
 ```bash
 # Install dependencies
 pipenv install --dev
 
-# Run all tests (pytest.ini auto-configures test discovery)
+# Run all backend tests
 PYTHONPATH=. pipenv run pytest
 
 # Run specific test file
@@ -408,6 +408,31 @@ PYTHONPATH=. pipenv run pytest tests/test_handler.py -v
 # Run with coverage (requires pytest-cov)
 PYTHONPATH=. pipenv run pytest --cov=gateway_backend --cov-report=term-missing
 ```
+
+**Coverage:** 47 tests covering all Lambda handlers including edge cases with special characters (apostrophes, quotes, etc.)
+
+### End-to-End (E2E) Tests
+
+Frontend tests using Playwright to verify complete user workflows.
+
+```bash
+# One-time setup: Install Playwright browsers
+pipenv run playwright install chromium
+
+# Install system dependencies (Linux only)
+sudo apt-get install libnspr4 libnss3 libasound2t64
+
+# Run E2E tests (headless)
+PYTHONPATH=. pipenv run pytest -m e2e
+
+# Run with visible browser (debugging)
+PYTHONPATH=. pipenv run pytest -m e2e --headed
+
+# Run specific E2E test
+PYTHONPATH=. pipenv run pytest tests/e2e/test_book_grid.py::TestBookGrid::test_page_loads -v
+```
+
+**Coverage:** Smoke tests for page load, book display, filtering, and special character handling. See `tests/e2e/README.md` for details.
 
 ### Code Quality Tools
 

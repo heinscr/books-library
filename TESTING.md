@@ -117,21 +117,72 @@ To integrate with CI/CD:
     pytest tests/test_handler.py -v
 ```
 
-## Future Test Enhancements
+## End-to-End (E2E) Tests
 
-Potential improvements to consider:
+### Overview
 
-- [ ] Add integration tests with LocalStack
-- [ ] Add API Gateway integration tests
-- [ ] Add end-to-end tests with real AWS resources (dev environment)
-- [ ] Add performance/load tests
-- [ ] Add coverage reporting (pytest-cov)
-- [ ] Add mutation testing (mutpy)
+E2E tests verify the complete user experience using Playwright to automate browser interactions.
+
+**Location**: `tests/e2e/`
+**Framework**: Playwright + pytest-playwright
+
+### Setup E2E Tests
+
+```bash
+# Install dependencies
+pipenv install --dev
+
+# Install Playwright browsers
+pipenv run playwright install chromium
+
+# Install system dependencies (Linux only, one-time setup)
+sudo apt-get install libnspr4 libnss3 libasound2t64
+# Or use: sudo pipenv run playwright install-deps
+```
+
+### Run E2E Tests
+
+```bash
+# Headless mode (for CI/CD)
+PYTHONPATH=. pipenv run pytest -m e2e
+
+# With visible browser (for debugging)
+PYTHONPATH=. pipenv run pytest -m e2e --headed
+
+# Slow motion (easier to see)
+PYTHONPATH=. pipenv run pytest -m e2e --headed --slowmo 1000
+
+# Against local development server
+BASE_URL=http://localhost:8000 PYTHONPATH=. pipenv run pytest -m e2e
+```
+
+### E2E Test Coverage
+
+**Implemented (Smoke Tests):**
+- ✅ Page loads successfully
+- ✅ Books display in grid layout
+- ✅ Book cards have required elements
+- ✅ Read toggle buttons exist and have proper attributes
+- ✅ Filter checkbox exists and toggles
+- ✅ Special characters (apostrophes, quotes) display correctly
+
+**Skipped (Requires Authentication):**
+- ⏭️ Toggle read status on books with apostrophes
+- ⏭️ Filter hides read books  
+- ⏭️ Filter state preserved after editing
+- ⏭️ Filter state preserved after deleting
+
+See `tests/e2e/README.md` for detailed E2E testing documentation.
 
 ## Test Results
 
-Current status: **23 tests, all passing** ✅
+Current status: **47 backend tests, all passing** ✅
 
+Backend unit tests:
 ```
-====== 23 passed in 4.29s ======
+====== 47 passed in 4.45s ======
 ```
+
+E2E tests: **9 smoke tests, 3 skipped (auth required)**
+- Tests require system dependencies (see E2E setup above)
+- Can run in CI/CD or on machines with browser dependencies installed
