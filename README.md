@@ -384,12 +384,21 @@ Run tests:
 # Install dependencies
 pipenv install --dev
 
-# Run all tests
+# Run all tests (pytest.ini auto-configures test discovery)
+PYTHONPATH=. pipenv run pytest
+
+# Run specific test file
 PYTHONPATH=. pipenv run pytest tests/test_handler.py -v
 
-# Run with coverage
-PYTHONPATH=. pipenv run pytest tests/ --cov=gateway_backend --cov-report=term-missing
+# Run with coverage (requires pytest-cov)
+PYTHONPATH=. pipenv run pytest --cov=gateway_backend --cov-report=term-missing
 ```
+
+**Test Configuration:**
+- Uses `pytest.ini` for consistent test execution
+- Verbose output with colored results
+- Short traceback format for easier debugging
+- Automatic test discovery in `tests/` directory
 
 **Test Coverage:**
 - ✅ All 7 Lambda handlers (100% coverage)
