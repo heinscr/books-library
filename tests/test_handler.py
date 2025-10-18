@@ -483,7 +483,7 @@ def test_s3_trigger_handler_success():
 
 
 def test_s3_trigger_handler_with_author():
-    """Test S3 trigger handler replaces dashes with spaces"""
+    """Test S3 trigger handler preserves original filename structure"""
     
     event = {
         'Records': [
@@ -504,12 +504,12 @@ def test_s3_trigger_handler_with_author():
     with patch.object(handler, 'books_table', mock_table):
         resp = handler.s3_trigger_handler(event, None)
     
-    # Verify put_item was called with underscores and dashes replaced with spaces
+    # Verify put_item was called
     call_args = mock_table.put_item.call_args[1]
     item = call_args['Item']
     
-    # Handler replaces _ and - with spaces
-    assert item['name'] == 'My Book Title'
+    # Handler now keeps original filename structure (doesn't replace _ or -)
+    assert item['name'] == 'My_Book-Title'
     assert item['id'] == 'My_Book-Title'  # ID keeps original (minus .zip)
     assert resp["statusCode"] == 200
 
@@ -609,3 +609,577 @@ def test_s3_trigger_handler_skips_folder():
     # This is an edge case where it might create an empty-name record
     mock_table.put_item.assert_called_once()
     assert resp["statusCode"] == 200
+
+
+# ============================================================================
+# Upload Handler Tests
+# ============================================================================
+
+def test_upload_handler_success():
+    """Test successful presigned URL generation for upload"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'filename': 'Test Book.zip',
+            'fileSize': 1024000,
+            'author': 'Test Author'
+        })
+    }
+    
+    mock_presigned_url = 'https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz'
+    
+    with patch.object(handler.s3_client, 'generate_presigned_url', return_value=mock_presigned_url):
+        resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    
+    assert body['uploadUrl'] == mock_presigned_url
+    assert body['method'] == 'PUT'
+    assert body['filename'] == 'Test Book.zip'
+    assert body['s3Key'] == 'books/Test Book.zip'
+    assert body['expiresIn'] == 3600
+    assert body['author'] == 'Test Author'
+
+
+def test_upload_handler_missing_filename():
+    """Test upload handler rejects request without filename"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'fileSize': 1024000
+        })
+    }
+    
+    resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'filename is required' in body['message']
+
+
+def test_upload_handler_invalid_extension():
+    """Test upload handler rejects non-zip files"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'filename': 'test.pdf',
+            'fileSize': 1024000
+        })
+    }
+    
+    resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'Only .zip files are allowed' in body['message']
+
+
+def test_upload_handler_file_too_large():
+    """Test upload handler rejects files exceeding 5GB limit"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'filename': 'huge.zip',
+            'fileSize': 6 * 1024 * 1024 * 1024  # 6GB
+        })
+    }
+    
+    resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'exceeds maximum limit of 5GB' in body['message']
+
+
+def test_upload_handler_invalid_json():
+    """Test upload handler handles invalid JSON gracefully"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': 'invalid json'
+    }
+    
+    resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'Invalid JSON' in body['message']
+
+
+def test_upload_handler_author_too_long():
+    """Test upload handler rejects author exceeding 500 characters"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'filename': 'test.zip',
+            'fileSize': 1024000,
+            'author': 'A' * 501  # 501 characters
+        })
+    }
+    
+    resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'exceeds maximum length of 500 characters' in body['message']
+
+
+def test_upload_handler_without_author():
+    """Test upload handler works without optional author field"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'filename': 'Test Book.zip',
+            'fileSize': 1024000
+        })
+    }
+    
+    mock_presigned_url = 'https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz'
+    
+    with patch.object(handler.s3_client, 'generate_presigned_url', return_value=mock_presigned_url):
+        resp = handler.upload_handler(event, None)
+    
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    
+    assert 'author' not in body
+
+
+# ============================================================================
+# Set Upload Metadata Handler Tests
+# ============================================================================
+
+def test_set_upload_metadata_handler_success():
+    """Test successful metadata update after upload"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'bookId': 'Test Book',
+            'author': 'New Author'
+        })
+    }
+    
+    mock_table = Mock()
+    mock_table.update_item.return_value = {}
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.set_upload_metadata_handler(event, None)
+    
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    
+    assert body['message'] == 'Metadata updated successfully'
+    assert body['bookId'] == 'Test Book'
+    assert body['author'] == 'New Author'
+    
+    # Verify update_item was called with correct parameters
+    mock_table.update_item.assert_called_once()
+
+
+def test_set_upload_metadata_handler_missing_book_id():
+    """Test metadata handler rejects request without bookId"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'author': 'Test Author'
+        })
+    }
+    
+    resp = handler.set_upload_metadata_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'bookId is required' in body['message']
+
+
+def test_set_upload_metadata_handler_book_not_found():
+    """Test metadata handler handles book not found (S3 trigger hasn't completed)"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'bookId': 'Nonexistent Book',
+            'author': 'Test Author'
+        })
+    }
+    
+    mock_table = Mock()
+    # Simulate ConditionalCheckFailedException
+    from botocore.exceptions import ClientError
+    mock_table.update_item.side_effect = ClientError(
+        {'Error': {'Code': 'ConditionalCheckFailedException'}},
+        'UpdateItem'
+    )
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.set_upload_metadata_handler(event, None)
+    
+    assert resp["statusCode"] == 404
+    body = json.loads(resp["body"])
+    assert 'not found' in body['message']
+
+
+def test_set_upload_metadata_handler_empty_author():
+    """Test metadata handler with empty author (no update needed)"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'bookId': 'Test Book',
+            'author': ''
+        })
+    }
+    
+    resp = handler.set_upload_metadata_handler(event, None)
+    
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert 'No metadata to update' in body['message']
+
+
+def test_set_upload_metadata_handler_author_too_long():
+    """Test metadata handler rejects author exceeding 500 characters"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': json.dumps({
+            'bookId': 'Test Book',
+            'author': 'A' * 501
+        })
+    }
+    
+    resp = handler.set_upload_metadata_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'exceeds maximum length of 500 characters' in body['message']
+
+
+def test_set_upload_metadata_handler_invalid_json():
+    """Test metadata handler handles invalid JSON"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'body': 'invalid json'
+    }
+    
+    resp = handler.set_upload_metadata_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'Invalid JSON' in body['message']
+
+
+# ============================================================================
+# Delete Book Handler Tests
+# ============================================================================
+
+def test_delete_book_handler_success():
+    """Test successful deletion of book from both DynamoDB and S3"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'pathParameters': {
+            'id': 'Test Book'
+        }
+    }
+    
+    # Mock DynamoDB response
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        'Item': {
+            'id': 'Test Book',
+            'name': 'Test Book',
+            's3_url': 's3://test-bucket/books/Test Book.zip'
+        }
+    }
+    mock_table.delete_item.return_value = {}
+    
+    # Mock S3 deletion
+    mock_s3_delete = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table), \
+         patch.object(handler.s3_client, 'delete_object', mock_s3_delete):
+        resp = handler.delete_book_handler(event, None)
+    
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    
+    assert body['message'] == 'Book deleted successfully'
+    assert body['bookId'] == 'Test Book'
+    
+    # Verify both S3 and DynamoDB deletions were called
+    mock_s3_delete.assert_called_once_with(
+        Bucket='test-bucket',
+        Key='books/Test Book.zip'
+    )
+    mock_table.delete_item.assert_called_once()
+
+
+def test_delete_book_handler_missing_id():
+    """Test delete handler rejects request without book ID"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'pathParameters': {}
+    }
+    
+    resp = handler.delete_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'Book ID is required' in body['message']
+
+
+def test_delete_book_handler_book_not_found():
+    """Test delete handler handles book not found"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'pathParameters': {
+            'id': 'Nonexistent Book'
+        }
+    }
+    
+    mock_table = Mock()
+    mock_table.get_item.return_value = {}  # No 'Item' key
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.delete_book_handler(event, None)
+    
+    assert resp["statusCode"] == 404
+    body = json.loads(resp["body"])
+    assert 'not found' in body['message']
+
+
+def test_delete_book_handler_s3_error_continues():
+    """Test delete handler continues with DynamoDB deletion even if S3 fails"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'pathParameters': {
+            'id': 'Test Book'
+        }
+    }
+    
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        'Item': {
+            'id': 'Test Book',
+            'name': 'Test Book',
+            's3_url': 's3://test-bucket/books/Test Book.zip'
+        }
+    }
+    mock_table.delete_item.return_value = {}
+    
+    # Mock S3 deletion to raise error
+    from botocore.exceptions import ClientError
+    mock_s3_delete = Mock(side_effect=ClientError(
+        {'Error': {'Code': 'NoSuchKey'}},
+        'DeleteObject'
+    ))
+    
+    with patch.object(handler, 'books_table', mock_table), \
+         patch.object(handler.s3_client, 'delete_object', mock_s3_delete):
+        resp = handler.delete_book_handler(event, None)
+    
+    # Should still succeed (S3 error is logged but not fatal)
+    assert resp["statusCode"] == 200
+    
+    # DynamoDB deletion should still happen
+    mock_table.delete_item.assert_called_once()
+
+
+def test_delete_book_handler_no_s3_url():
+    """Test delete handler works when book has no S3 URL"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'pathParameters': {
+            'id': 'Test Book'
+        }
+    }
+    
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        'Item': {
+            'id': 'Test Book',
+            'name': 'Test Book'
+            # No s3_url
+        }
+    }
+    mock_table.delete_item.return_value = {}
+    
+    mock_s3_delete = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table), \
+         patch.object(handler.s3_client, 'delete_object', mock_s3_delete):
+        resp = handler.delete_book_handler(event, None)
+    
+    assert resp["statusCode"] == 200
+    
+    # S3 delete should NOT be called
+    mock_s3_delete.assert_not_called()
+    
+    # DynamoDB deletion should still happen
+    mock_table.delete_item.assert_called_once()
+
+
+def test_delete_book_handler_dynamodb_not_found_on_delete():
+    """Test delete handler handles race condition where book deleted between get and delete"""
+    
+    event = {
+        'requestContext': {
+            'authorizer': {
+                'claims': {
+                    'email': 'test@example.com'
+                }
+            }
+        },
+        'pathParameters': {
+            'id': 'Test Book'
+        }
+    }
+    
+    mock_table = Mock()
+    mock_table.get_item.return_value = {
+        'Item': {
+            'id': 'Test Book',
+            'name': 'Test Book',
+            's3_url': 's3://test-bucket/books/Test Book.zip'
+        }
+    }
+    
+    # Simulate ConditionalCheckFailedException during delete
+    from botocore.exceptions import ClientError
+    mock_table.delete_item.side_effect = ClientError(
+        {'Error': {'Code': 'ConditionalCheckFailedException'}},
+        'DeleteItem'
+    )
+    
+    mock_s3_delete = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table), \
+         patch.object(handler.s3_client, 'delete_object', mock_s3_delete):
+        resp = handler.delete_book_handler(event, None)
+    
+    assert resp["statusCode"] == 404
+    body = json.loads(resp["body"])
+    assert 'not found' in body['message']
