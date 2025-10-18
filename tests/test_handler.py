@@ -188,7 +188,7 @@ def test_get_book_handler_missing_id():
     assert resp["statusCode"] == 400
     body = json.loads(resp["body"])
     assert "error" in body
-    assert "Book ID is required" in body["message"]
+    assert "Id is required" in body["message"]
 
 
 def test_get_book_handler_not_found():
@@ -295,7 +295,7 @@ def test_update_book_handler_missing_id():
     
     assert resp["statusCode"] == 400
     body = json.loads(resp["body"])
-    assert "Book ID is required" in body["message"]
+    assert "Id is required" in body["message"]
 
 
 def test_update_book_handler_invalid_json():
@@ -763,7 +763,7 @@ def test_upload_handler_author_too_long():
     
     assert resp["statusCode"] == 400
     body = json.loads(resp["body"])
-    assert 'exceeds maximum length of 500 characters' in body['message']
+    assert 'exceeds maximum length of 500' in body['message']
 
 
 def test_upload_handler_without_author():
@@ -933,7 +933,7 @@ def test_set_upload_metadata_handler_author_too_long():
     
     assert resp["statusCode"] == 400
     body = json.loads(resp["body"])
-    assert 'exceeds maximum length of 500 characters' in body['message']
+    assert 'exceeds maximum length of 500' in body['message']
 
 
 def test_set_upload_metadata_handler_invalid_json():
@@ -1027,7 +1027,7 @@ def test_delete_book_handler_missing_id():
     
     assert resp["statusCode"] == 400
     body = json.loads(resp["body"])
-    assert 'Book ID is required' in body['message']
+    assert 'Id is required' in body['message']
 
 
 def test_delete_book_handler_book_not_found():

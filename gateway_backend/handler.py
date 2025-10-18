@@ -63,6 +63,99 @@ def _response(status_code: int, body: Any) -> dict:
     }
 
 
+def _get_path_param(event: dict, param: str) -> tuple[str | None, dict | None]:
+    """
+    Extract and URL-decode a path parameter from API Gateway event.
+    
+    Returns:
+        tuple: (decoded_value, error_response) - If successful, error_response is None
+    """
+    path_params = event.get('pathParameters', {})
+    if not path_params or param not in path_params:
+        logger.warning(f"Missing {param} in path parameters")
+        return None, _response(400, {
+            'error': 'Bad Request',
+            'message': f'{param.capitalize()} is required in path'
+        })
+    return unquote(path_params[param]), None
+
+
+def _parse_json_body(event: dict) -> tuple[dict, dict | None]:
+    """
+    Parse JSON body from API Gateway event.
+    
+    Returns:
+        tuple: (parsed_body, error_response) - If successful, error_response is None
+               If error, parsed_body is empty dict (caller should check error first)
+    """
+    try:
+        return json.loads(event.get('body', '{}')), None
+    except json.JSONDecodeError:
+        logger.warning("Invalid JSON in request body")
+        return {}, _response(400, {
+            'error': 'Bad Request',
+            'message': 'Invalid JSON in request body'
+        })
+
+
+def _validate_string_field(body: dict, field: str, max_length: int = 500, required: bool = False) -> dict | None:
+    """
+    Validate a string field in request body.
+    
+    Args:
+        body: Request body dictionary
+        field: Field name to validate
+        max_length: Maximum allowed length
+        required: Whether the field is required
+    
+    Returns:
+        dict: Error response if validation fails, None if valid
+    """
+    if field not in body:
+        if required:
+            return _response(400, {
+                'error': 'Bad Request',
+                'message': f'Field "{field}" is required'
+            })
+        return None
+    
+    value = body[field]
+    if not isinstance(value, str):
+        return _response(400, {
+            'error': 'Bad Request',
+            'message': f'Field "{field}" must be a string'
+        })
+    
+    if len(value) > max_length:
+        return _response(400, {
+            'error': 'Bad Request',
+            'message': f'Field "{field}" exceeds maximum length of {max_length}'
+        })
+    
+    if required and not value.strip():
+        return _response(400, {
+            'error': 'Bad Request',
+            'message': f'Field "{field}" cannot be empty'
+        })
+    
+    return None
+
+
+def _validate_boolean_field(body: dict, field: str) -> dict | None:
+    """
+    Validate a boolean field in request body.
+    
+    Returns:
+        dict: Error response if validation fails, None if valid
+    """
+    if field in body and not isinstance(body[field], bool):
+        return _response(400, {
+            'error': 'Bad Request',
+            'message': f'Field "{field}" must be a boolean'
+        })
+    return None
+
+
 def list_handler(event, context):
     """
     Lambda handler to list all books from DynamoDB
@@ -124,15 +217,10 @@ def get_book_handler(event, context):
     
     try:
         # Get the book ID from path parameters
-        path_parameters = event.get('pathParameters', {})
-        if not path_parameters or 'id' not in path_parameters:
-            logger.warning("Missing book ID in path parameters")
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Book ID is required in path'
-            })
+        book_id, error = _get_path_param(event, 'id')
+        if error:
+            return error
         
-        book_id = unquote(path_parameters['id'])
         logger.info(f"Fetching book: {book_id}")
         
         # Look up book in DynamoDB
@@ -211,63 +299,36 @@ def update_book_handler(event, context):
     
     try:
         # Get the book ID from path parameters
-        path_parameters = event.get('pathParameters', {})
-        if not path_parameters or 'id' not in path_parameters:
-            logger.warning("Missing book ID in path parameters")
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Book ID is required in path'
-            })
+        book_id, error = _get_path_param(event, 'id')
+        if error:
+            return error
         
-        book_id = unquote(path_parameters['id'])
         logger.info(f"Updating book: {book_id}")
         
         # Parse request body
-        try:
-            body = json.loads(event.get('body', '{}'))
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in request body")
+        body, error = _parse_json_body(event)
+        if error:
+            return error
+        
+        # Validate fields
+        error = _validate_boolean_field(body, 'read')
+        if error:
+            return error
+        
+        error = _validate_string_field(body, 'author', max_length=500)
+        if error:
+            return error
+        
+        error = _validate_string_field(body, 'name', max_length=500, required=False)
+        if error:
+            return error
+        
+        # Additional validation for name (cannot be empty if provided)
+        if 'name' in body and not body['name'].strip():
             return _response(400, {
                 'error': 'Bad Request',
-                'message': 'Invalid JSON in request body'
+                'message': 'Field "name" cannot be empty'
             })
-        
-        # Validate input types and constraints
-        if 'read' in body:
-            if not isinstance(body['read'], bool):
-                return _response(400, {
-                    'error': 'Bad Request',
-                    'message': 'Field "read" must be a boolean'
-                })
-        
-        if 'author' in body:
-            if not isinstance(body['author'], str):
-                return _response(400, {
-                    'error': 'Bad Request',
-                    'message': 'Field "author" must be a string'
-                })
-            if len(body['author']) > 500:
-                return _response(400, {
-                    'error': 'Bad Request',
-                    'message': 'Field "author" exceeds maximum length of 500 characters'
-                })
-        
-        if 'name' in body:
-            if not isinstance(body['name'], str):
-                return _response(400, {
-                    'error': 'Bad Request',
-                    'message': 'Field "name" must be a string'
-                })
-            if len(body['name']) > 500:
-                return _response(400, {
-                    'error': 'Bad Request',
-                    'message': 'Field "name" exceeds maximum length of 500 characters'
-                })
-            if len(body['name']) == 0:
-                return _response(400, {
-                    'error': 'Bad Request',
-                    'message': 'Field "name" cannot be empty'
-                })
         
         # Build update expression dynamically
         update_expr_parts = []
@@ -437,16 +498,11 @@ def upload_handler(event, context):
         logger.info(f"Upload request from user: {user_email}")
         
         # Parse request body
-        try:
-            body = json.loads(event.get('body', '{}'))
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in request body")
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Invalid JSON in request body'
-            })
+        body, error = _parse_json_body(event)
+        if error:
+            return error
         
-        # Validate filename
+        # Validate filename is present
         filename = body.get('filename')
         if not filename:
             logger.warning("Missing filename in request")
@@ -466,13 +522,12 @@ def upload_handler(event, context):
         # Sanitize filename (remove path traversal attempts)
         filename = os.path.basename(filename)
         
-        # Get optional author
+        # Validate optional author field
+        error = _validate_string_field(body, 'author', max_length=500)
+        if error:
+            return error
+        
         author = body.get('author', '').strip()
-        if author and len(author) > 500:
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Author name exceeds maximum length of 500 characters'
-            })
         
         # Get optional file size for validation
         file_size = body.get('fileSize', 0)
@@ -548,14 +603,9 @@ def set_upload_metadata_handler(event, context):
         logger.info(f"Set metadata request from user: {user_email}")
         
         # Parse request body
-        try:
-            body = json.loads(event.get('body', '{}'))
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in request body")
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Invalid JSON in request body'
-            })
+        body, error = _parse_json_body(event)
+        if error:
+            return error
         
         # Validate bookId
         book_id = body.get('bookId')
@@ -566,13 +616,12 @@ def set_upload_metadata_handler(event, context):
                 'message': 'bookId is required'
             })
         
-        # Get optional author
+        # Validate optional author field
+        error = _validate_string_field(body, 'author', max_length=500)
+        if error:
+            return error
+        
         author = body.get('author', '').strip()
-        if author and len(author) > 500:
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Author name exceeds maximum length of 500 characters'
-            })
         
         if not author:
             # Nothing to update
@@ -641,15 +690,10 @@ def delete_book_handler(event, context):
         logger.info(f"Delete request from user: {user_email}")
         
         # Get the book ID from path parameters
-        path_parameters = event.get('pathParameters', {})
-        if not path_parameters or 'id' not in path_parameters:
-            logger.warning("Missing book ID in path parameters")
-            return _response(400, {
-                'error': 'Bad Request',
-                'message': 'Book ID is required in path'
-            })
+        book_id, error = _get_path_param(event, 'id')
+        if error:
+            return error
         
-        book_id = unquote(path_parameters['id'])
         logger.info(f"Deleting book: {book_id}")
         
         # First, get the book record to find the S3 URL
