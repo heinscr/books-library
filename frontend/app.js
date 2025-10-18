@@ -5,7 +5,7 @@ const COGNITO_CONFIG = {
     region: 'us-east-1'
 };
 
-const API_URL = 'https://c8b0ym37ph.execute-api.us-east-1.amazonaws.com/Prod/books';
+const API_URL = 'https://vlii8j82ug.execute-api.us-east-2.amazonaws.com/Prod/books';
 
 // Check if user is already logged in
 window.addEventListener('DOMContentLoaded', () => {
@@ -327,30 +327,43 @@ async function fetchBooks() {
                 const bookCard = document.createElement('div');
                 bookCard.className = 'book-card';
                 
-                // Check if book is marked as read
-                const isRead = isBookRead(book.name);
+                // Check if book is marked as read (from backend)
+                const isRead = book.read || false;
                 if (isRead) {
                     bookCard.classList.add('read');
                 }
                 
-                // Format file size
-                const sizeInMB = (book.size / (1024 * 1024)).toFixed(2);
-                
                 // Format date
-                const date = new Date(book.lastModified);
+                const date = new Date(book.created);
                 const formattedDate = date.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric'
                 });
                 
-                bookCard.innerHTML = `
+                // Format file size
+                const sizeInMB = book.size ? (book.size / (1024 * 1024)).toFixed(2) : '?';
+                
+                // Build book info HTML
+                let bookInfo = `
                     <div class="book-header">
                         <div class="book-name">${escapeHtml(book.name)}</div>
-                        <div class="read-toggle ${isRead ? 'read' : ''}" onclick="toggleReadStatus('${escapeHtml(book.name)}', event)" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                        <div class="read-toggle ${isRead ? 'read' : ''}" onclick="toggleReadStatus('${escapeHtml(book.id)}', event)" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
                             ${isRead ? '✓' : '○'}
                         </div>
                     </div>
+                `;
+                
+                // Add author if available
+                if (book.author) {
+                    bookInfo += `
+                        <div class="book-author">
+                            ✍️ ${escapeHtml(book.author)}
+                        </div>
+                    `;
+                }
+                
+                bookInfo += `
                     <div class="book-meta">
                         <div class="book-size">📦 ${sizeInMB} MB</div>
                         <div class="book-date">📅 ${formattedDate}</div>
@@ -360,10 +373,12 @@ async function fetchBooks() {
                     </div>
                 `;
                 
+                bookCard.innerHTML = bookInfo;
+                
                 // Add click handler for download (but not on the read toggle)
                 bookCard.addEventListener('click', (e) => {
                     if (!e.target.closest('.read-toggle')) {
-                        downloadBook(book.name);
+                        downloadBook(book.id);
                     }
                 });
                 
@@ -402,36 +417,22 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Read status management (stored in localStorage)
-function getReadBooks() {
-    const readBooks = localStorage.getItem('readBooks');
-    return readBooks ? JSON.parse(readBooks) : [];
-}
-
-function isBookRead(bookName) {
-    const readBooks = getReadBooks();
-    return readBooks.includes(bookName);
-}
-
-function toggleReadStatus(bookName, event) {
+// Read status management (synced with backend)
+async function toggleReadStatus(bookId, event) {
     event.stopPropagation(); // Prevent download trigger
     
-    const readBooks = getReadBooks();
-    const index = readBooks.indexOf(bookName);
-    const isNowRead = index === -1;
-    
-    if (index > -1) {
-        // Remove from read list
-        readBooks.splice(index, 1);
-    } else {
-        // Add to read list
-        readBooks.push(bookName);
+    const token = localStorage.getItem('idToken');
+    if (!token) {
+        showAlert('Please login to update read status', 'error');
+        return;
     }
     
-    localStorage.setItem('readBooks', JSON.stringify(readBooks));
-    
-    // Update UI without reloading
+    // Get current state from DOM
     const toggleButton = event.target.closest('.read-toggle');
+    const currentReadStatus = toggleButton.classList.contains('read');
+    const isNowRead = !currentReadStatus;
+    
+    // Update UI optimistically
     const bookCard = event.target.closest('.book-card');
     
     if (isNowRead) {
@@ -445,9 +446,69 @@ function toggleReadStatus(bookName, event) {
         toggleButton.title = 'Mark as read';
         bookCard.classList.remove('read');
     }
+    
+    try {
+        // Update read status on backend
+        const encodedBookId = encodeURIComponent(bookId);
+        const response = await fetch(`${API_URL}/${encodedBookId}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ read: isNowRead })
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            // Try to refresh token and retry
+            const refreshed = await refreshAuthToken();
+            if (refreshed) {
+                // Retry the update
+                return toggleReadStatus(bookId, event);
+            } else {
+                // Refresh failed, revert UI and logout
+                showAlert('⚠️ Session expired. Please log in again.', 'error');
+                // Revert UI
+                if (isNowRead) {
+                    toggleButton.classList.remove('read');
+                    toggleButton.innerHTML = '○';
+                    bookCard.classList.remove('read');
+                } else {
+                    toggleButton.classList.add('read');
+                    toggleButton.innerHTML = '✓';
+                    bookCard.classList.add('read');
+                }
+                setTimeout(() => logout(), 2000);
+                return;
+            }
+        }
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Success - backend is now in sync
+        
+    } catch (error) {
+        console.error('Error updating read status:', error);
+        showAlert(`❌ Failed to update read status: ${error.message}`, 'error');
+        
+        // Revert UI on error
+        if (isNowRead) {
+            toggleButton.classList.remove('read');
+            toggleButton.innerHTML = '○';
+            toggleButton.title = 'Mark as read';
+            bookCard.classList.remove('read');
+        } else {
+            toggleButton.classList.add('read');
+            toggleButton.innerHTML = '✓';
+            toggleButton.title = 'Mark as unread';
+            bookCard.classList.add('read');
+        }
+    }
 }
 
-async function downloadBook(bookName) {
+async function downloadBook(bookId) {
     const token = localStorage.getItem('idToken');
     if (!token) {
         showAlert('Please login first', 'error');
@@ -456,13 +517,13 @@ async function downloadBook(bookName) {
 
     try {
         // Show loading state
-        showAlert(`📥 Preparing download for ${bookName}...`, 'success');
+        showAlert(`📥 Preparing download...`, 'success');
         
-        // Encode the book name for the URL
-        const encodedBookName = encodeURIComponent(bookName);
+        // Encode the book ID for the URL
+        const encodedBookId = encodeURIComponent(bookId);
         
         // Fetch presigned URL from API
-        const response = await fetch(`${API_URL}/${encodedBookName}`, {
+        const response = await fetch(`${API_URL}/${encodedBookId}`, {
             headers: {
                 'Authorization': token
             }
@@ -473,7 +534,7 @@ async function downloadBook(bookName) {
             const refreshed = await refreshAuthToken();
             if (refreshed) {
                 // Retry download with new token
-                return downloadBook(bookName);
+                return downloadBook(bookId);
             } else {
                 // Refresh failed, logout
                 showAlert('⚠️ Session expired. Please log in again.', 'error');
@@ -492,13 +553,13 @@ async function downloadBook(bookName) {
         // Open the presigned URL in a new window to trigger download
         const link = document.createElement('a');
         link.href = data.downloadUrl;
-        link.download = bookName;
+        link.download = data.name || bookId;
         link.target = '_blank';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         
-        showAlert(`✅ Download started for ${bookName}`, 'success');
+        showAlert(`✅ Download started for ${data.name || bookId}`, 'success');
         
     } catch (error) {
         showAlert(`❌ Download failed: ${error.message}`, 'error');

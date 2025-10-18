@@ -277,6 +277,14 @@ body {
     flex: 1;
 }
 
+.book-author {
+    font-size: 14px;
+    color: #8b6f47;
+    font-style: italic;
+    margin-bottom: 8px;
+    margin-top: -5px;
+}
+
 .read-toggle {
     width: 32px;
     height: 32px;

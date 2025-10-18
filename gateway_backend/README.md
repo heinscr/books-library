@@ -5,45 +5,79 @@ Lambda functions for the Books Library API.
 ## Handler Functions
 
 ### `list_handler(event, context)`
-Lists all `.zip` files in the S3 books folder with metadata.
+Lists all books from DynamoDB with complete metadata.
 
 **Returns:**
 ```json
 [
   {
-    "name": "book.zip",
+    "id": "Book Title",
+    "name": "Book Title",
+    "author": "Author Name",
     "size": 1048576,
-    "lastModified": "2025-10-17T12:00:00Z"
+    "created": "2025-10-17T12:00:00+00:00",
+    "read": false,
+    "s3_url": "s3://bucket/books/Book Title.zip"
   }
 ]
 ```
 
 ### `get_book_handler(event, context)`
-Generates a presigned URL for downloading a specific book.
+Gets book metadata from DynamoDB and generates a presigned URL for downloading.
 
 **Parameters:**
-- `id` (path): Book filename (URL-encoded)
+- `id` (path): Book ID (URL-encoded, matches DynamoDB id field)
 
 **Returns:**
 ```json
 {
-  "bookId": "book.zip",
+  "id": "Book Title",
+  "name": "Book Title",
+  "author": "Author Name",
+  "size": 1048576,
+  "created": "2025-10-17T12:00:00+00:00",
+  "read": false,
   "downloadUrl": "https://s3.amazonaws.com/...",
   "expiresIn": 3600
 }
 ```
 
+### `update_book_handler(event, context)`
+Updates book metadata in DynamoDB (e.g., read status).
+
+**Parameters:**
+- `id` (path): Book ID (URL-encoded)
+- Body: JSON with fields to update (e.g., `{"read": true}`)
+
+**Returns:**
+```json
+{
+  "id": "Book Title",
+  "name": "Book Title",
+  "read": true,
+  ...
+}
+```
+
+### `s3_trigger_handler(event, context)`
+S3 event trigger that auto-populates DynamoDB when books are uploaded.
+
+**Triggered by:** S3 ObjectCreated events in the books/ prefix
+**Creates:** DynamoDB record with extracted metadata (name, author, size, created date)
+
 ## Environment Variables
 
-- `BUCKET_NAME`: S3 bucket name
-- `BOOKS_PREFIX`: S3 prefix for books (default: `books/`)
+- `BUCKET_NAME`: S3 bucket name (default: crackpow)
+- `BOOKS_PREFIX`: S3 prefix for books (default: books/)
+- `BOOKS_TABLE`: DynamoDB table name (set by SAM template)
 
 ## Security
 
-- Cognito JWT authentication required
+- Cognito JWT authentication required for API endpoints
 - S3 signature version 4 for presigned URLs
 - Path traversal protection
 - URL decoding for filenames with spaces
+- DynamoDB write operations isolated to S3 trigger function
 
 ## Testing
 

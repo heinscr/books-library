@@ -1,6 +1,6 @@
 # Books Library - Serverless Book Management System
 
-A serverless book management system built with AWS Lambda, API Gateway, Cognito, S3, and CloudFront. Upload books to S3, browse them through a web interface, and download via secure presigned URLs.
+A serverless book management system built with AWS Lambda, API Gateway, Cognito, DynamoDB, S3, and CloudFront. Upload books to S3, browse them through a web interface, and download via secure presigned URLs. Book metadata is stored in DynamoDB for fast access and persistent read status tracking.
 
 ## 🏗️ Architecture
 
@@ -18,45 +18,57 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 │  ├─ Authorization: AWS Cognito (JWT tokens)                    │
 │  └─ Routes:                                                     │
 │     ├─ GET /books - List all books with metadata               │
-│     └─ GET /books/{id} - Get presigned download URL            │
+│     ├─ GET /books/{id} - Get presigned download URL            │
+│     └─ PATCH /books/{id} - Update book metadata (read status)  │
 └─────────────────────────────────────────────────────────────────┘
                             │
-                ┌───────────┴───────────┐
-                ▼                       ▼
-┌──────────────────────┐   ┌──────────────────────┐
-│  Lambda Function     │   │  Lambda Function     │
-│  BooksFunction       │   │  GetBookFunction     │
-│  (List handler)      │   │  (Download handler)  │
-└──────────────────────┘   └──────────────────────┘
-                │                       │
-                └───────────┬───────────┘
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ BooksFunction│  │GetBookFunc   │  │UpdateBookFunc│
+│ (List books) │  │ (Download)   │  │(Update meta) │
+└──────────────┘  └──────────────┘  └──────────────┘
+        │                   │                   │
+        └───────────────────┼───────────────────┘
                             ▼
                 ┌──────────────────────┐
-                │  S3 Bucket           │
-                │  crackpow/books/     │
-                │  (Private .zip files)│
+                │  DynamoDB Table      │
+                │  Books (metadata)    │
+                │  ├─ id, name, author │
+                │  ├─ size, created    │
+                │  └─ read status      │
                 └──────────────────────┘
+                            
+┌──────────────────────┐           ┌──────────────────────┐
+│  S3 Bucket           │ ─trigger─>│ S3TriggerFunction    │
+│  crackpow/books/     │           │ (Auto-add to DB)     │
+│  (Private .zip files)│           └──────────────────────┘
+└──────────────────────┘
 ```
 
 ## ✨ Features
 
 ### Frontend
 - 📱 Clean, responsive web interface
-- 🔐 AWS Cognito authentication
+- 🔐 AWS Cognito authentication with auto token refresh
 - 📚 Auto-loading book list on login
 - ⬇️ One-click downloads via presigned URLs
-- ✅ Read/Unread status tracking (localStorage)
+- ✅ Read/Unread status tracking (synced with backend)
+- 📊 File size display in MB
+- 👤 Author extraction from "Author - Title.zip" format
 - 🎨 Modern card-based grid layout
 - 🔔 Toast notifications (no layout shift)
 
 ### Backend
-- 🚀 Serverless architecture (AWS Lambda)
+- 🚀 Serverless architecture (AWS Lambda + DynamoDB)
 - 🔒 Cognito-protected API endpoints
-- 📦 Lists books from S3 with metadata (size, date)
+- 📦 DynamoDB for fast metadata access (no S3 listing required)
 - 🔗 Generates secure presigned URLs (1-hour expiration)
 - 🛡️ Path traversal protection
 - 📊 Sorted by date (newest first)
 - 🌐 CORS enabled for cross-origin requests
+- ⚡ Auto-ingestion: S3 trigger automatically adds new books to DynamoDB
+- 💾 Persistent read status across devices
 
 ## 🚀 Quick Start
 
@@ -67,54 +79,87 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 - An S3 bucket for storing books
 - A Cognito User Pool set up
 
-### 1. Clone and Configure
+### 1. Configure AWS Profile
 
 ```bash
-git clone <your-repo-url>
-cd books
+# If using a named profile (not default), set the environment variable
+export AWS_PROFILE=your-profile-name
+export AWS_REGION=us-east-2  # or your preferred region
+
+# Verify your AWS identity
+aws sts get-caller-identity
+```
+
+### 2. Clone and Configure
+
+```bash
+git clone https://github.com/heinscr/books-library.git
+cd books-library
 ```
 
 Update `template.yaml` with your values:
 - `CognitoUserPoolId`
 - `CognitoUserPoolArn`
-- `BUCKET_NAME` (S3 bucket)
+- `BUCKET_NAME` (S3 bucket name in environment variables)
 
-### 2. Deploy Backend
+### 3. Deploy Backend
 
 ```bash
+# Build the SAM application
 sam build
+
+# Deploy (first time use --guided, after that just sam deploy)
 sam deploy --guided
 ```
 
 Note the API endpoint URL from the outputs.
 
-### 3. Configure Frontend
+### 4. Configure S3 Trigger and Migrate Data
+
+```bash
+# Configure S3 to trigger Lambda on book uploads
+# You'll be prompted for the S3TriggerFunction ARN from the deployment
+cd scripts
+AWS_PROFILE=your-profile-name AWS_REGION=us-east-2 ./configure-s3-trigger.sh
+
+# Migrate existing books from S3 to DynamoDB
+AWS_PROFILE=your-profile-name AWS_REGION=us-east-2 python3 migrate-books.py
+```
+
+See `DEPLOYMENT_GUIDE.md` for detailed instructions.
+
+### 5. Configure Frontend
 
 Update `frontend/app.js` with your values:
 ```javascript
 const COGNITO_CONFIG = {
     userPoolId: 'YOUR_USER_POOL_ID',
     clientId: 'YOUR_CLIENT_ID',
-    region: 'YOUR_REGION'
+    region: 'YOUR_COGNITO_REGION'  // Usually us-east-1
 };
 
-const API_URL = 'YOUR_API_GATEWAY_URL/books';
+const API_URL = 'YOUR_API_GATEWAY_URL/books';  // From sam deploy output
 ```
 
-### 4. Upload Frontend to S3
+### 6. Upload Frontend to S3
 
 ```bash
 aws s3 cp frontend/ s3://YOUR_BUCKET/books-app/ --recursive
+
+# If using CloudFront, invalidate the cache
+aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
 ```
 
-### 5. Add Books
+### 7. Add Books
 
-Upload `.zip` files to your S3 bucket:
+Upload `.zip` files to your S3 bucket (they'll auto-populate in DynamoDB via S3 trigger):
 ```bash
-aws s3 cp mybook.zip s3://YOUR_BUCKET/books/
+aws s3 cp "Author - Book Title.zip" s3://YOUR_BUCKET/books/
 ```
 
-### 6. Create Users
+**Filename Format**: For author extraction, use: `"Author Name - Book Title.zip"`
+
+### 8. Create Users
 
 ```bash
 aws cognito-idp admin-create-user \
@@ -134,24 +179,30 @@ aws cognito-idp admin-set-user-password \
 ```
 .
 ├── gateway_backend/          # Lambda function code
-│   ├── handler.py           # API handlers (list & download)
+│   ├── handler.py           # API handlers (list, get, update, S3 trigger)
 │   └── __init__.py
 ├── frontend/                # Web interface
 │   ├── index.html          # Main HTML
-│   ├── app.js              # JavaScript logic
+│   ├── app.js              # JavaScript logic with Cognito auth
 │   └── styles.css          # Styling
+├── scripts/                # Deployment helper scripts
+│   ├── configure-s3-trigger.sh  # Set up S3 Lambda trigger
+│   ├── migrate-books.py         # Migrate S3 books to DynamoDB
+│   └── README.md                # Scripts documentation
 ├── tests/                  # Unit tests
 │   └── test_handler.py
 ├── template.yaml           # SAM CloudFormation template
 ├── samconfig.toml         # SAM deployment config
 ├── Pipfile                # Python dependencies
+├── DEPLOYMENT_GUIDE.md    # Detailed deployment instructions
+├── DYNAMODB_MIGRATION.md  # DynamoDB migration documentation
 └── README.md              # This file
 ```
 
 ## 🔧 API Endpoints
 
 ### GET /books
-Lists all `.zip` files in the S3 books folder.
+Lists all books from DynamoDB with complete metadata.
 
 **Headers:**
 - `Authorization`: Cognito JWT token
@@ -160,28 +211,63 @@ Lists all `.zip` files in the S3 books folder.
 ```json
 [
   {
-    "name": "book1.zip",
+    "id": "Book Title",
+    "name": "Book Title",
+    "author": "Author Name",
     "size": 1048576,
-    "lastModified": "2025-10-17T12:00:00Z"
+    "created": "2025-10-17T12:00:00+00:00",
+    "read": false,
+    "s3_url": "s3://bucket/books/Book Title.zip"
   }
 ]
 ```
 
 ### GET /books/{id}
-Generates a presigned URL for downloading a specific book.
+Generates a presigned URL for downloading a specific book and returns metadata.
 
 **Headers:**
 - `Authorization`: Cognito JWT token
 
 **Path Parameters:**
-- `id`: Book filename (URL-encoded)
+- `id`: Book ID (URL-encoded, matches DynamoDB id field)
 
 **Response:**
 ```json
 {
-  "bookId": "book1.zip",
+  "id": "Book Title",
+  "name": "Book Title",
+  "author": "Author Name",
+  "size": 1048576,
+  "created": "2025-10-17T12:00:00+00:00",
+  "read": false,
   "downloadUrl": "https://s3.amazonaws.com/...",
   "expiresIn": 3600
+}
+```
+
+### PATCH /books/{id}
+Updates book metadata (currently supports read status).
+
+**Headers:**
+- `Authorization`: Cognito JWT token
+
+**Path Parameters:**
+- `id`: Book ID (URL-encoded)
+
+**Body:**
+```json
+{
+  "read": true
+}
+```
+
+**Response:**
+```json
+{
+  "id": "Book Title",
+  "name": "Book Title",
+  "read": true,
+  ...
 }
 ```
 
@@ -206,13 +292,25 @@ python -m pytest tests/
 ### Read/Unread Tracking
 - Click the circle icon to mark books as read (✓)
 - Read books have lower opacity and green border
-- Status persists in browser localStorage
+- **Status syncs with backend** (persists across devices)
+- Updates via PATCH API call to DynamoDB
+
+### File Size Display
+- Shows book size in MB (e.g., "245.5 MB")
+- Extracted from S3 metadata during upload
+- Helps manage storage and download expectations
+
+### Author Display
+- Automatically extracted from filename format: "Author - Title.zip"
+- Displays below book title
+- Falls back gracefully if no author in filename
 
 ### Clean UX
 - Toast notifications (no page jumps)
-- Instant toggle updates (no reload)
+- Instant toggle updates (optimistic UI)
 - Download icon centered in cards
 - Responsive grid layout
+- Auto token refresh (no login interruptions)
 
 ## 📝 Configuration
 
@@ -264,12 +362,14 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 
 ## 📊 AWS Resources Used
 
-- **Lambda**: 2 functions (list, download)
+- **Lambda**: 4 functions (list, get, update, S3 trigger)
 - **API Gateway**: REST API with Cognito authorizer
+- **DynamoDB**: Books table for metadata (PAY_PER_REQUEST billing)
 - **Cognito**: User Pool for authentication
-- **S3**: Storage for books and frontend
-- **CloudFront**: CDN for frontend delivery
+- **S3**: Storage for books (.zip files) and frontend
+- **CloudFront**: CDN for frontend delivery (optional)
 - **IAM**: Roles and policies for Lambda
+- **S3 Event Notifications**: Triggers Lambda on new uploads
 
 ## 🤝 Contributing
 

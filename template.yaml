@@ -14,6 +14,21 @@ Parameters:
     Default: arn:aws:cognito-idp:us-east-1:918213481336:userpool/us-east-1_7RUbNyZe8
 
 Resources:
+  # DynamoDB table for book metadata
+  BooksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Books
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
   BooksFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -26,9 +41,12 @@ Resources:
         Variables:
           BUCKET_NAME: crackpow
           BOOKS_PREFIX: books/
+          BOOKS_TABLE: !Ref BooksTable
       Policies:
         - S3ReadPolicy:
             BucketName: crackpow
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BooksTable
       Events:
         BooksApi:
           Type: Api
@@ -51,9 +69,12 @@ Resources:
         Variables:
           BUCKET_NAME: crackpow
           BOOKS_PREFIX: books/
+          BOOKS_TABLE: !Ref BooksTable
       Policies:
         - S3ReadPolicy:
             BucketName: crackpow
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BooksTable
       Events:
         GetBookApi:
           Type: Api
@@ -64,6 +85,49 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
 
+  UpdateBookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.update_book_handler
+      Runtime: python3.12
+      CodeUri: gateway_backend/
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          BOOKS_TABLE: !Ref BooksTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BooksTable
+      Events:
+        UpdateBookApi:
+          Type: Api
+          Properties:
+            Path: /books/{id}
+            Method: patch
+            RestApiId: !Ref BooksApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  S3TriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.s3_trigger_handler
+      Runtime: python3.12
+      CodeUri: gateway_backend/
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          BOOKS_TABLE: !Ref BooksTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BooksTable
+        - S3ReadPolicy:
+            BucketName: crackpow
+      # Note: S3 event trigger must be configured manually on existing bucket
+      # or use 'aws s3api put-bucket-notification-configuration' after deployment
+
   BooksApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -71,7 +135,7 @@ Resources:
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"
-        AllowMethods: "'GET,OPTIONS'"
+        AllowMethods: "'GET,PATCH,OPTIONS'"
       Auth:
         Authorizers:
           CognitoAuthorizer:
