@@ -1,6 +1,6 @@
 # Books Library - Serverless Book Management System
 
-A serverless book management system built with AWS Lambda, API Gateway, Cognito, DynamoDB, S3, and CloudFront. Upload books to S3, browse them through a web interface, and download via secure presigned URLs. Book metadata is stored in DynamoDB for fast access and persistent read status tracking.
+A full-featured serverless book management system built with AWS Lambda, API Gateway, Cognito, DynamoDB, S3, and CloudFront. Upload books via web interface, manage metadata, download securely, and track reading progress - all with authentication and real-time updates.
 
 ## 🏗️ Architecture
 
@@ -19,60 +19,74 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 │  └─ Routes:                                                     │
 │     ├─ GET /books - List all books with metadata                │
 │     ├─ GET /books/{id} - Get presigned download URL             │
-│     ├─ PATCH /books/{id} - Update book metadata (read status)   │
+│     ├─ PATCH /books/{id} - Update book metadata                 │
+│     ├─ DELETE /books/{id} - Delete book from S3 & DynamoDB      │
 │     ├─ POST /upload - Get presigned URL for S3 upload           │
 │     └─ POST /upload/metadata - Set author after upload          │
 └─────────────────────────────────────────────────────────────────┘
                             │
-        ┌───────────────────┼───────────────────┬──────────────────┐
-        ▼                   ▼                   ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐
-│ BooksFunction│  │GetBookFunc   │  │UpdateBookFunc│  │ UploadFunction   │
-│ (List books) │  │ (Download)   │  │(Update meta) │  │ (Presigned URL)  │
-└──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘
-        │                   │                   │              │
-        └───────────────────┼───────────────────┼──────────────┘
-                            ▼                   │
-                ┌──────────────────────┐        │
-                │  DynamoDB Table      │        │
-                │  Books (metadata)    │◄───────┤
-                │  ├─ id, name, author │        │
-                │  ├─ size, created    │        │
-                │  └─ read status      │  ┌─────▼────────────────┐
-                └──────────────────────┘  │SetMetadataFunction   │
-                                          │(Set author on upload)│
-                                          └──────────────────────┘
-                            
-┌──────────────────────┐           ┌──────────────────────┐
-│  S3 Bucket           │ ─trigger─>│ S3TriggerFunction    │
-│  YOUR_BUCKET/books/  │           │ (Auto-add to DB)     │
-│  (Private .zip files)│           └──────────────────────┘
+        ┌───────────────────┼──────────────┬─────────────┬──────────────┐
+        ▼                   ▼              ▼             ▼              ▼
+┌──────────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐  ┌────────────┐
+│BooksFunction │  │GetBookFunc   │  │UpdateBook  │  │DeleteBook│  │Upload      │
+│(List books)  │  │(Download)    │  │(Edit meta) │  │(Remove)  │  │(Presigned) │
+└──────────────┘  └──────────────┘  └────────────┘  └──────────┘  └────────────┘
+        │                   │              │              │              │
+        └───────────────────┼──────────────┼──────────────┼──────────────┘
+                            ▼              │              │
+                ┌──────────────────────┐   │              │
+                │  DynamoDB Table      │◄──┤              │
+                │  Books (metadata)    │◄──┼──────────────┤
+                │  ├─ id, name, author │   │              │
+                │  ├─ size, created    │   │        ┌─────▼────────────────┐
+                │  └─ read status      │   │        │SetMetadataFunction   │
+                └──────────────────────┘   │        │(Set author on upload)│
+                            ▲              │        └──────────────────────┘
+                            │              │
+┌──────────────────────┐    │              │
+│  S3 Bucket           │────┼──────────────┘
+│  YOUR_BUCKET/books/  │◄───┘ (delete file)
+│  (Private .zip files)│
+└──────────────────────┘
+         │
+         │ (trigger on upload)
+         ▼
+┌──────────────────────┐
+│ S3TriggerFunction    │
+│ (Auto-add to DB)     │
 └──────────────────────┘
 ```
 
 ## ✨ Features
 
 ### Frontend
-- 📱 Clean, responsive web interface
+- 📱 Clean, responsive web interface with modern design
 - 🔐 AWS Cognito authentication with auto token refresh
 - 📚 Auto-loading book list on login
 - ⬇️ One-click downloads via presigned URLs
-- 📤 **NEW: Web-based book upload with optional author field**
+- 📤 **Web-based book upload** with drag-and-drop support (up to 5GB)
+- 📝 **Book editor modal** - Click any book to view/edit details
+- ✏️ **Inline author editing** - Update author names on the fly
+- 🗑️ **Delete books** - Remove from both S3 and DynamoDB with confirmation
 - ✅ Read/Unread status tracking (synced with backend)
-- 📊 File size display (MB/GB)
+- 📊 File size display (MB/GB) with smart formatting
 - 👤 Author extraction from "Author - Title.zip" format
-- 🎨 Modern card-based grid layout
+- 🎨 Modern card-based grid layout with hover effects
 - 🔔 Toast notifications (no layout shift)
-- 📈 Real-time upload progress with size tracking
+- 📈 Real-time upload progress with MB/GB tracking
+- 🔍 Filter controls (hide read books)
+- 💾 Persistent state across sessions
 
 ### Backend
 - 🚀 Serverless architecture (AWS Lambda + DynamoDB)
-- 🔒 Cognito-protected API endpoints
+- 🔒 Cognito-protected API endpoints (all operations authenticated)
 - 📦 DynamoDB for fast metadata access (no S3 listing required)
 - 🔗 Generates secure presigned URLs (1-hour expiration)
-- 📤 **NEW: Presigned PUT URL generation for direct S3 uploads (up to 5GB)**
-- 🏷️ **NEW: Post-upload metadata endpoint for author attribution**
-- 🛡️ Path traversal protection
+- 📤 **Presigned PUT URL generation** for direct S3 uploads (up to 5GB)
+- 🏷️ **Post-upload metadata endpoint** for author attribution
+- 🗑️ **Safe deletion** from both DynamoDB and S3
+- ✏️ **Metadata updates** (author, read status, name)
+- 🛡️ Path traversal protection and input validation
 - 📊 Sorted by date (newest first)
 - 🌐 CORS enabled for cross-origin requests
 - ⚡ Auto-ingestion: S3 trigger automatically adds new books to DynamoDB
@@ -263,7 +277,7 @@ Generates a presigned URL for downloading a specific book and returns metadata.
 ```
 
 ### PATCH /books/{id}
-Updates book metadata (currently supports read status).
+Updates book metadata (supports read status, author, and name).
 
 **Headers:**
 - `Authorization`: Cognito JWT token
@@ -274,7 +288,8 @@ Updates book metadata (currently supports read status).
 **Body:**
 ```json
 {
-  "read": true
+  "read": true,
+  "author": "Updated Author Name"
 }
 ```
 
@@ -283,10 +298,33 @@ Updates book metadata (currently supports read status).
 {
   "id": "Book Title",
   "name": "Book Title",
+  "author": "Updated Author Name",
   "read": true,
   ...
 }
 ```
+
+### DELETE /books/{id}
+Permanently deletes a book from both DynamoDB and S3 storage.
+
+**Headers:**
+- `Authorization`: Cognito JWT token
+
+**Path Parameters:**
+- `id`: Book ID (URL-encoded)
+
+**Response:**
+```json
+{
+  "message": "Book deleted successfully",
+  "bookId": "Book Title"
+}
+```
+
+**Error Responses:**
+- `404 Not Found` - Book doesn't exist
+- `400 Bad Request` - Missing book ID
+- `500 Internal Server Error` - S3 or DynamoDB error
 
 ### POST /upload
 Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
@@ -339,19 +377,48 @@ Sets metadata (author) on a book after S3 upload completes.
 
 ## 🧪 Testing
 
-Run unit tests:
+**Comprehensive test coverage** with 42 unit tests covering all Lambda handlers.
+
+Run tests:
 ```bash
-python -m pytest tests/
+# Install dependencies
+pipenv install --dev
+
+# Run all tests
+PYTHONPATH=. pipenv run pytest tests/test_handler.py -v
+
+# Run with coverage
+PYTHONPATH=. pipenv run pytest tests/ --cov=gateway_backend --cov-report=term-missing
 ```
+
+**Test Coverage:**
+- ✅ All 7 Lambda handlers (100% coverage)
+- ✅ 42 tests total (all passing)
+- ✅ Upload functionality (7 tests)
+- ✅ Metadata updates (6 tests)
+- ✅ Delete operations (7 tests)
+- ✅ List/Get/Update operations (18 tests)
+- ✅ S3 trigger processing (4 tests)
+
+**Test Categories:**
+- Happy path scenarios
+- Error handling
+- Input validation
+- Edge cases and race conditions
+- Authentication checks
+- Service error handling
 
 ## 🔒 Security Features
 
 - ✅ Cognito authentication required for all endpoints
 - ✅ S3 books folder is private (no public access)
-- ✅ Downloads use presigned URLs (time-limited)
+- ✅ Downloads use presigned URLs (1-hour expiration)
+- ✅ Uploads use presigned URLs (60-minute expiration for large files)
 - ✅ Path traversal protection in book IDs
+- ✅ Input validation on all user-provided data
+- ✅ Authorization checks on destructive operations (delete)
 - ✅ CORS properly configured
-- ✅ JWT tokens stored in localStorage
+- ✅ JWT tokens with automatic refresh
 
 ## 🎨 Frontend Features
 
@@ -362,29 +429,46 @@ python -m pytest tests/
 - Real-time progress bar with size tracking (MB/GB)
 - Automatic retry logic for metadata updates
 - Books appear in list immediately after upload
+- XMLHttpRequest for reliable large file uploads
+
+### Book Details Editor
+- Click any book card to open the details modal
+- View complete book information (title, date, size, author)
+- **Edit author** inline with save button
+- Changes sync to backend immediately
+- No page refresh needed
+
+### Delete Books
+- Click **"🗑️ Delete Book"** button in details modal
+- Two-step confirmation (button + browser dialog)
+- **Permanent deletion** warning
+- Removes from both S3 storage and DynamoDB
+- Immediate UI update after deletion
 
 ### Read/Unread Tracking
-- Click the circle icon to mark books as read (✓)
+- Click the circle icon (○/✓) to toggle read status
 - Read books have lower opacity and green border
 - **Status syncs with backend** (persists across devices)
 - Updates via PATCH API call to DynamoDB
 
 ### File Size Display
-- Shows book size in MB (e.g., "245.5 MB")
+- Shows book size in MB or GB (e.g., "245.5 MB" or "2.34 GB")
 - Extracted from S3 metadata during upload
-- Helps manage storage and download expectations
+- Smart formatting based on file size
 
 ### Author Display
 - Automatically extracted from filename format: "Author - Title.zip"
 - Displays below book title
-- Falls back gracefully if no author in filename
+- **Editable** via book details modal
+- Falls back gracefully if no author
 
 ### Clean UX
 - Toast notifications (no page jumps)
 - Instant toggle updates (optimistic UI)
-- Download icon centered in cards
+- Click-anywhere-to-edit book cards (except download/read icons)
 - Responsive grid layout
 - Auto token refresh (no login interruptions)
+- Filter controls (hide read books)
 
 ## 📝 Configuration
 
@@ -436,14 +520,36 @@ aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
 
 ## 📊 AWS Resources Used
 
-- **Lambda**: 4 functions (list, get, update, S3 trigger)
+- **Lambda**: 7 functions
+  - BooksFunction (list all books)
+  - GetBookFunction (get book + download URL)
+  - UpdateBookFunction (update metadata)
+  - DeleteBookFunction (delete from S3 + DynamoDB)
+  - UploadFunction (generate presigned upload URL)
+  - SetUploadMetadataFunction (set author after upload)
+  - S3TriggerFunction (auto-ingest uploads)
 - **API Gateway**: REST API with Cognito authorizer
-- **DynamoDB**: Books table for metadata (PAY_PER_REQUEST billing)
+  - 6 authenticated endpoints (GET, POST, PATCH, DELETE)
+  - CORS enabled for cross-origin requests
+- **DynamoDB**: Books table for metadata
+  - PAY_PER_REQUEST billing mode
+  - Attributes: id, name, author, size, created, read, s3_url
 - **Cognito**: User Pool for authentication
-- **S3**: Storage for books (.zip files) and frontend
-- **CloudFront**: CDN for frontend delivery (optional)
+  - JWT token-based auth
+  - Auto token refresh
+- **S3**: Dual-purpose storage
+  - Private bucket for books (.zip files, up to 5GB each)
+  - Public bucket/prefix for frontend (CloudFront origin)
+  - Event notifications for auto-ingestion
+- **CloudFront**: CDN for frontend delivery (optional but recommended)
+  - HTTPS support
+  - Custom domain support
+  - Edge caching for fast global access
 - **IAM**: Roles and policies for Lambda
-- **S3 Event Notifications**: Triggers Lambda on new uploads
+  - Least-privilege access
+  - Service-specific permissions
+
+**Estimated Monthly Cost:** $0-5 for personal use (mostly S3 storage)
 
 ## 🤝 Contributing
 
@@ -455,4 +561,4 @@ MIT License - feel free to use this project however you like.
 
 ## 🙏 Acknowledgments
 
-Built with AWS SAM, inspired by the need for a simple personal book library.
+Built with AWS SAM, inspired by the need for a simple personal book library with full CRUD capabilities.

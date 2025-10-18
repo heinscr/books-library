@@ -4,10 +4,11 @@ Lambda functions for the Books Library API.
 
 ## Handler Functions
 
-**Total: 6 Lambda functions**
+**Total: 7 Lambda functions**
 - `list_handler` - List all books
 - `get_book_handler` - Get book and download URL
 - `update_book_handler` - Update book metadata
+- `delete_book_handler` - Delete book from DynamoDB and S3
 - `upload_handler` - Generate presigned upload URL
 - `set_upload_metadata_handler` - Set author after upload
 - `s3_trigger_handler` - Auto-populate from S3 events
@@ -66,6 +67,26 @@ Updates book metadata in DynamoDB (e.g., read status).
   ...
 }
 ```
+
+### `delete_book_handler(event, context)`
+Deletes a book from both DynamoDB and S3.
+
+**Parameters:**
+- `id` (path): Book ID (URL-encoded)
+
+**Returns:**
+```json
+{
+  "message": "Book deleted successfully",
+  "id": "Book Title"
+}
+```
+
+**Features:**
+- Removes from DynamoDB first, then S3
+- Gracefully handles missing S3 files (e.g., books without s3_url)
+- Returns 404 if book doesn't exist in DynamoDB
+- Permanent deletion with no recovery option
 
 ### `upload_handler(event, context)`
 Generates a presigned PUT URL for uploading books directly to S3.
