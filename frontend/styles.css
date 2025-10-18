@@ -177,6 +177,46 @@ body {
     padding: 0 40px;
 }
 
+/* Filter controls */
+.filter-controls {
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 20px;
+}
+
+.filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 20px;
+    background: rgba(248, 249, 250, 0.95);
+    border-radius: 8px;
+    border: 2px solid #d4a574;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.filter-toggle:hover {
+    border-color: #ffd700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.filter-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #d4a574;
+}
+
+.filter-toggle span {
+    color: #2d1f13;
+    font-weight: 600;
+    font-size: 14px;
+}
+
 .shelf-header {
     text-align: center;
     margin-bottom: 40px;

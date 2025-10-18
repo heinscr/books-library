@@ -7,6 +7,9 @@ const COGNITO_CONFIG = {
 
 const API_URL = 'https://vlii8j82ug.execute-api.us-east-2.amazonaws.com/Prod/books';
 
+// Store books data for filtering
+let allBooks = [];
+
 // Check if user is already logged in
 window.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('idToken');
@@ -255,6 +258,8 @@ function showLoggedInState(email) {
 function showLoggedOutState() {
     document.getElementById('loginForm').style.display = 'flex';
     document.getElementById('userAvatar').style.display = 'none';
+    document.getElementById('filterControls').style.display = 'none';
+    allBooks = [];
 }
 
 function showAlert(message, type) {
@@ -310,96 +315,128 @@ async function fetchBooks() {
         
         const books = await response.json();
         
-        if (books.length === 0) {
-            booksContainer.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📚</div>
-                    <h3>No books found</h3>
-                    <p>Your library is empty.</p>
-                </div>
-            `;
-        } else {
-            // Display books in grid
-            const booksGrid = document.createElement('div');
-            booksGrid.className = 'books-grid';
-            
-            books.forEach(book => {
-                const bookCard = document.createElement('div');
-                bookCard.className = 'book-card';
-                
-                // Check if book is marked as read (from backend)
-                const isRead = book.read || false;
-                if (isRead) {
-                    bookCard.classList.add('read');
-                }
-                
-                // Format date
-                const date = new Date(book.created);
-                const formattedDate = date.toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                });
-                
-                // Format file size
-                const sizeInMB = book.size ? (book.size / (1024 * 1024)).toFixed(2) : '?';
-                
-                // Build book info HTML
-                let bookInfo = `
-                    <div class="book-header">
-                        <div class="book-name">${escapeHtml(book.name)}</div>
-                        <div class="read-toggle ${isRead ? 'read' : ''}" onclick="toggleReadStatus('${escapeHtml(book.id)}', event)" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
-                            ${isRead ? '✓' : '○'}
-                        </div>
-                    </div>
-                `;
-                
-                // Add author if available
-                if (book.author) {
-                    bookInfo += `
-                        <div class="book-author">
-                            ✍️ ${escapeHtml(book.author)}
-                        </div>
-                    `;
-                }
-                
-                bookInfo += `
-                    <div class="book-meta">
-                        <div class="book-size">📦 ${sizeInMB} MB</div>
-                        <div class="book-date">📅 ${formattedDate}</div>
-                    </div>
-                    <div class="book-download">
-                        <span class="download-icon">⬇️</span>
-                    </div>
-                `;
-                
-                bookCard.innerHTML = bookInfo;
-                
-                // Add click handler for download (but not on the read toggle)
-                bookCard.addEventListener('click', (e) => {
-                    if (!e.target.closest('.read-toggle')) {
-                        downloadBook(book.id);
-                    }
-                });
-                
-                booksGrid.appendChild(bookCard);
-            });
-            
-            booksContainer.appendChild(booksGrid);
-            showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+        // Store books globally for filtering
+        allBooks = books;
+        
+        // Show filter controls if we have books
+        if (books.length > 0) {
+            document.getElementById('filterControls').style.display = 'flex';
         }
+        
+        // Render the books
+        renderBooks(books);
         
     } catch (error) {
-        showAlert(`❌ Error: ${error.message}`, 'error');
+        showAlert(`❌ Failed to load books: ${error.message}`, 'error');
         console.error('Error fetching books:', error);
-        
-        // If auth error, logout
-        if (error.message.includes('Authentication expired')) {
-            setTimeout(() => logout(), 2000);
-        }
     } finally {
-        // Hide loading
         loadingSpinner.style.display = 'none';
+    }
+}
+
+function renderBooks(books) {
+    const booksContainer = document.getElementById('booksContainer');
+    booksContainer.innerHTML = '';
+    
+    if (books.length === 0) {
+        booksContainer.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📚</div>
+                <h3>No books found</h3>
+                <p>Your library is empty.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display books in grid
+    const booksGrid = document.createElement('div');
+    booksGrid.className = 'books-grid';
+    
+    books.forEach(book => {
+        const bookCard = document.createElement('div');
+        bookCard.className = 'book-card';
+        
+        // Check if book is marked as read (from backend)
+        const isRead = book.read || false;
+        if (isRead) {
+            bookCard.classList.add('read');
+        }
+        
+        // Format date
+        const date = new Date(book.created);
+        const formattedDate = date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+        
+        // Format file size
+        const sizeInMB = book.size ? (book.size / (1024 * 1024)).toFixed(2) : '?';
+        
+        // Build book info HTML
+        let bookInfo = `
+            <div class="book-header">
+                <div class="book-name">${escapeHtml(book.name)}</div>
+                <div class="read-toggle ${isRead ? 'read' : ''}" onclick="toggleReadStatus('${escapeHtml(book.id)}', event)" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                    ${isRead ? '✓' : '○'}
+                </div>
+            </div>
+        `;
+        
+        // Add author if available
+        if (book.author) {
+            bookInfo += `
+                <div class="book-author">
+                    ✍️ ${escapeHtml(book.author)}
+                </div>
+            `;
+        }
+        
+        bookInfo += `
+            <div class="book-meta">
+                <div class="book-size">📦 ${sizeInMB} MB</div>
+                <div class="book-date">📅 ${formattedDate}</div>
+            </div>
+            <div class="book-download">
+                <span class="download-icon">⬇️</span>
+            </div>
+        `;
+        
+        bookCard.innerHTML = bookInfo;
+        
+        // Add click handler for download (but not on the read toggle)
+        bookCard.addEventListener('click', (e) => {
+            if (!e.target.closest('.read-toggle')) {
+                downloadBook(book.id);
+            }
+        });
+        
+        booksGrid.appendChild(bookCard);
+    });
+    
+    booksContainer.appendChild(booksGrid);
+    showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+}
+
+// Apply filters based on filter controls
+function applyFilters() {
+    const hideRead = document.getElementById('hideReadBooks').checked;
+    
+    let filteredBooks = allBooks;
+    
+    // Filter out read books if checkbox is checked
+    if (hideRead) {
+        filteredBooks = allBooks.filter(book => !book.read);
+    }
+    
+    // Re-render with filtered books
+    renderBooks(filteredBooks);
+    
+    // Update success message
+    if (hideRead && filteredBooks.length < allBooks.length) {
+        const hiddenCount = allBooks.length - filteredBooks.length;
+        showAlert(`📚 Showing ${filteredBooks.length} books (${hiddenCount} read books hidden)`, 'success');
     }
 }
 
@@ -488,6 +525,14 @@ async function toggleReadStatus(bookId, event) {
         }
         
         // Success - backend is now in sync
+        // Update the allBooks array to keep it in sync
+        const bookIndex = allBooks.findIndex(b => b.id === bookId);
+        if (bookIndex !== -1) {
+            allBooks[bookIndex].read = isNowRead;
+        }
+        
+        // Reapply filters (in case "hide read" is active, book might need to disappear)
+        applyFilters();
         
     } catch (error) {
         console.error('Error updating read status:', error);

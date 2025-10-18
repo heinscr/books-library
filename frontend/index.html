@@ -42,6 +42,14 @@
 
     <!-- Main content -->
     <div class="container">
+        <!-- Filter controls -->
+        <div id="filterControls" class="filter-controls" style="display: none;">
+            <label class="filter-toggle">
+                <input type="checkbox" id="hideReadBooks" onchange="applyFilters()">
+                <span>Hide read books</span>
+            </label>
+        </div>
+        
         <span id="loading" class="loading" style="display: none;">
             <span class="spinner"></span>
             <span>Loading collection...</span>
