@@ -6,20 +6,20 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  your-domain.com (CloudFront + S3)                             │
-│  ├─ Frontend: Vanilla JS SPA with Cognito auth                │
-│  └─ Serves from: s3://YOUR_BUCKET/books-app/                  │
+│  your-domain.com (CloudFront + S3)                              │
+│  ├─ Frontend: Vanilla JS SPA with Cognito auth                  │
+│  └─ Serves from: s3://YOUR_BUCKET/books-app/                    │
 └─────────────────────────────────────────────────────────────────┘
                             │
                             │ (Authenticated API Calls)
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  API Gateway (REST API)                                         │
-│  ├─ Authorization: AWS Cognito (JWT tokens)                    │
+│  ├─ Authorization: AWS Cognito (JWT tokens)                     │
 │  └─ Routes:                                                     │
-│     ├─ GET /books - List all books with metadata               │
-│     ├─ GET /books/{id} - Get presigned download URL            │
-│     └─ PATCH /books/{id} - Update book metadata (read status)  │
+│     ├─ GET /books - List all books with metadata                │
+│     ├─ GET /books/{id} - Get presigned download URL             │
+│     └─ PATCH /books/{id} - Update book metadata (read status)   │
 └─────────────────────────────────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
