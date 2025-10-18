@@ -5,7 +5,7 @@
 # Environment Variables (optional):
 #   AWS_PROFILE: AWS profile name (default: 'default')
 #   AWS_REGION: AWS region (default: 'us-east-2')
-#   S3_BUCKET: S3 bucket name (default: 'crackpow')
+#   S3_BUCKET: S3 bucket name (default: 'YOUR_BUCKET')
 #
 # Example usage:
 #   # Use defaults
@@ -22,7 +22,7 @@ set -e
 # Configuration - Update these values for your environment
 PROFILE="${AWS_PROFILE:-default}"
 REGION="${AWS_REGION:-us-east-2}"
-BUCKET="${S3_BUCKET:-crackpow}"
+BUCKET="${S3_BUCKET:-YOUR_BUCKET}"
 FUNCTION_NAME="" # Will be filled after deployment
 
 echo "=== S3 Lambda Trigger Configuration ==="

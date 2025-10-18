@@ -33,7 +33,7 @@ s3_client = boto3.client(
 dynamodb = boto3.resource('dynamodb', region_name='us-east-2')
 
 # Configuration
-BUCKET_NAME = os.environ.get('BUCKET_NAME', 'crackpow')
+BUCKET_NAME = os.environ.get('BUCKET_NAME', 'YOUR_BUCKET')
 BOOKS_PREFIX = os.environ.get('BOOKS_PREFIX', 'books/')
 BOOKS_TABLE_NAME = os.environ.get('BOOKS_TABLE')
 books_table = dynamodb.Table(BOOKS_TABLE_NAME) if BOOKS_TABLE_NAME else None

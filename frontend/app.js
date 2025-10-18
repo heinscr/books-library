@@ -1,11 +1,13 @@
 // Cognito configuration
+// These values should be replaced with your actual configuration
+// Or create a config.js file (see config.js.example)
 const COGNITO_CONFIG = {
-    userPoolId: 'us-east-1_7RUbNyZe8',
-    clientId: '4s3ffigml0qellh579al1oqifu',
+    userPoolId: 'YOUR_USER_POOL_ID',
+    clientId: 'YOUR_CLIENT_ID',
     region: 'us-east-1'
 };
 
-const API_URL = 'https://vlii8j82ug.execute-api.us-east-2.amazonaws.com/Prod/books';
+const API_URL = 'YOUR_API_GATEWAY_URL/books';
 
 // Store books data for filtering
 let allBooks = [];

@@ -1,0 +1,10 @@
+// Frontend Configuration
+// Copy this file to config.js and update with your actual values
+
+const COGNITO_CONFIG = {
+    userPoolId: 'YOUR_USER_POOL_ID',     // e.g., 'us-east-1_XXXXXXXXX'
+    clientId: 'YOUR_CLIENT_ID',          // e.g., '1abc2def3ghi4jkl5mno6pqr'
+    region: 'YOUR_COGNITO_REGION'        // e.g., 'us-east-1'
+};
+
+const API_URL = 'YOUR_API_GATEWAY_URL/books';  // e.g., 'https://abc123.execute-api.us-east-2.amazonaws.com/Prod/books'

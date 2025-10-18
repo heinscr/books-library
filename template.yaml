@@ -3,15 +3,23 @@ Transform: AWS::Serverless-2016-10-31
 Description: Serverless Books Library API with Cognito authentication - Lists and downloads books from S3
 
 Parameters:
+  BucketName:
+    Type: String
+    Description: S3 bucket name for storing books and hosting frontend
+    AllowedPattern: ^[a-z0-9][a-z0-9-]*[a-z0-9]$
+    ConstraintDescription: Bucket name must be lowercase, alphanumeric with hyphens
+  
   CognitoUserPoolId:
     Type: String
-    Description: Cognito User Pool ID
-    Default: us-east-1_7RUbNyZe8
+    Description: Cognito User Pool ID (e.g., us-east-1_XXXXXXXXX)
   
   CognitoUserPoolArn:
     Type: String
     Description: Cognito User Pool ARN
-    Default: arn:aws:cognito-idp:us-east-1:918213481336:userpool/us-east-1_7RUbNyZe8
+  
+  CognitoClientId:
+    Type: String
+    Description: Cognito User Pool Client ID
 
 Resources:
   # DynamoDB table for book metadata
@@ -39,12 +47,12 @@ Resources:
       Timeout: 10
       Environment:
         Variables:
-          BUCKET_NAME: crackpow
+          BUCKET_NAME: !Ref BucketName
           BOOKS_PREFIX: books/
           BOOKS_TABLE: !Ref BooksTable
       Policies:
         - S3ReadPolicy:
-            BucketName: crackpow
+            BucketName: !Ref BucketName
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
       Events:
@@ -67,12 +75,12 @@ Resources:
       Timeout: 10
       Environment:
         Variables:
-          BUCKET_NAME: crackpow
+          BUCKET_NAME: !Ref BucketName
           BOOKS_PREFIX: books/
           BOOKS_TABLE: !Ref BooksTable
       Policies:
         - S3ReadPolicy:
-            BucketName: crackpow
+            BucketName: !Ref BucketName
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
       Events:
@@ -120,11 +128,12 @@ Resources:
       Environment:
         Variables:
           BOOKS_TABLE: !Ref BooksTable
+          BUCKET_NAME: !Ref BucketName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
         - S3ReadPolicy:
-            BucketName: crackpow
+            BucketName: !Ref BucketName
       # Note: S3 event trigger must be configured manually on existing bucket
       # or use 'aws s3api put-bucket-notification-configuration' after deployment
 
@@ -146,10 +155,18 @@ Outputs:
     Description: "API Gateway endpoint URL"
     Value: !Sub "https://${BooksApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
   
-  UserPoolId:
+  S3TriggerFunctionArn:
+    Description: "S3 Trigger Lambda Function ARN (needed for S3 configuration)"
+    Value: !GetAtt S3TriggerFunction.Arn
+  
+  BucketName:
+    Description: "S3 Bucket Name"
+    Value: !Ref BucketName
+  
+  CognitoUserPoolId:
     Description: "Cognito User Pool ID"
     Value: !Ref CognitoUserPoolId
   
-  UserPoolClientId:
+  CognitoClientId:
     Description: "Cognito User Pool Client ID"
-    Value: 4s3ffigml0qellh579al1oqifu
+    Value: !Ref CognitoClientId

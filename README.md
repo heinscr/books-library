@@ -97,10 +97,19 @@ git clone https://github.com/heinscr/books-library.git
 cd books-library
 ```
 
-Update `template.yaml` with your values:
-- `CognitoUserPoolId`
-- `CognitoUserPoolArn`
-- `BUCKET_NAME` (S3 bucket name in environment variables)
+**Configuration:**
+See [`CONFIGURATION.md`](CONFIGURATION.md) for detailed setup instructions.
+
+Quick setup:
+```bash
+# 1. Copy and configure SAM deployment settings
+cp samconfig.toml.example samconfig.toml
+# Edit samconfig.toml with your AWS resource values
+
+# 2. Copy and configure frontend
+cp frontend/config.js.example frontend/config.js
+# Edit frontend/config.js with your Cognito and API details
+```
 
 ### 3. Deploy Backend
 

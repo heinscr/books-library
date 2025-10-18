@@ -6,7 +6,7 @@ Run this after deploying the DynamoDB table but before the frontend goes live
 Environment Variables (optional):
     AWS_PROFILE: AWS profile name (default: 'default')
     AWS_REGION: AWS region (default: 'us-east-2')
-    S3_BUCKET: S3 bucket name (default: 'crackpow')
+    S3_BUCKET: S3 bucket name (default: 'YOUR_BUCKET')
     BOOKS_PREFIX: S3 prefix for books (default: 'books/')
     DYNAMODB_TABLE: DynamoDB table name (default: 'Books')
 
@@ -29,7 +29,7 @@ from urllib.parse import unquote
 # Configuration - Update these values or set environment variables
 PROFILE = os.environ.get('AWS_PROFILE', 'default')
 REGION = os.environ.get('AWS_REGION', 'us-east-2')
-BUCKET = os.environ.get('S3_BUCKET', 'crackpow')
+BUCKET = os.environ.get('S3_BUCKET', 'YOUR_BUCKET')
 PREFIX = os.environ.get('BOOKS_PREFIX', 'books/')
 TABLE_NAME = os.environ.get('DYNAMODB_TABLE', 'Books')
 

@@ -1,0 +1,16 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "books-library"
+resolve_s3 = true
+s3_prefix = "books-library"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+parameter_overrides = [
+    "BucketName=YOUR_BUCKET_NAME",
+    "CognitoUserPoolId=YOUR_USER_POOL_ID",
+    "CognitoUserPoolArn=YOUR_USER_POOL_ARN",
+    "CognitoClientId=YOUR_CLIENT_ID"
+]
