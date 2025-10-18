@@ -16,13 +16,18 @@ from __future__ import annotations
 
 import json
 import os
+import logging
 from typing import Any
+from datetime import datetime, timezone
 import boto3
 from botocore.exceptions import ClientError
 from botocore.config import Config
-from datetime import datetime
 from urllib.parse import unquote, urlparse
 from decimal import Decimal
+
+# Configure structured logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
 s3_client = boto3.client(
@@ -58,6 +63,8 @@ def list_handler(event, context):
     Lambda handler to list all books from DynamoDB
     Returns list of books with metadata from DynamoDB
     """
+    logger.info("list_handler invoked", extra={"table": BOOKS_TABLE_NAME})
+    
     try:
         # Scan the DynamoDB table
         response = books_table.scan()
@@ -67,6 +74,8 @@ def list_handler(event, context):
         while 'LastEvaluatedKey' in response:
             response = books_table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
             items.extend(response.get('Items', []))
+        
+        logger.info(f"Retrieved {len(items)} books from DynamoDB")
         
         # Convert DynamoDB items to API response format
         books = []
@@ -92,7 +101,7 @@ def list_handler(event, context):
         return _response(200, books)
         
     except Exception as e:
-        print(f"Error listing books: {str(e)}")
+        logger.error(f"Error listing books: {str(e)}", exc_info=True)
         return _response(500, {
             'error': 'Failed to list books',
             'message': str(e)
@@ -106,21 +115,26 @@ def get_book_handler(event, context):
     Expects book ID in path parameter 'id'
     Returns presigned URL valid for 1 hour along with book metadata
     """
+    logger.info("get_book_handler invoked")
+    
     try:
         # Get the book ID from path parameters
         path_parameters = event.get('pathParameters', {})
         if not path_parameters or 'id' not in path_parameters:
+            logger.warning("Missing book ID in path parameters")
             return _response(400, {
                 'error': 'Bad Request',
                 'message': 'Book ID is required in path'
             })
         
         book_id = unquote(path_parameters['id'])
+        logger.info(f"Fetching book: {book_id}")
         
         # Look up book in DynamoDB
         try:
             response = books_table.get_item(Key={'id': book_id})
             if 'Item' not in response:
+                logger.warning(f"Book not found: {book_id}")
                 return _response(404, {
                     'error': 'Not Found',
                     'message': f'Book "{book_id}" not found'
@@ -129,7 +143,7 @@ def get_book_handler(event, context):
             book_item = response['Item']
             
         except ClientError as e:
-            print(f"DynamoDB error: {str(e)}")
+            logger.error(f"DynamoDB error: {str(e)}", exc_info=True)
             return _response(500, {
                 'error': 'Database Error',
                 'message': str(e)
@@ -138,6 +152,7 @@ def get_book_handler(event, context):
         # Get S3 URL from DynamoDB record
         s3_url = book_item.get('s3_url')
         if not s3_url:
+            logger.error(f"Book {book_id} missing S3 URL in DynamoDB")
             return _response(500, {
                 'error': 'Invalid Data',
                 'message': 'Book record missing S3 URL'
@@ -148,6 +163,8 @@ def get_book_handler(event, context):
         parsed_url = urlparse(s3_url)
         bucket = parsed_url.netloc
         s3_key = parsed_url.path.lstrip('/')
+        
+        logger.info(f"Generating presigned URL for s3://{bucket}/{s3_key}")
         
         # Generate presigned URL (valid for 1 hour)
         presigned_url = s3_client.generate_presigned_url(
@@ -172,7 +189,7 @@ def get_book_handler(event, context):
         })
         
     except Exception as e:
-        print(f"Error generating presigned URL: {str(e)}")
+        logger.error(f"Error generating presigned URL: {str(e)}", exc_info=True)
         return _response(500, {
             'error': 'Internal Server Error',
             'message': str(e)
@@ -185,25 +202,67 @@ def update_book_handler(event, context):
     Expects book ID in path parameter 'id'
     Accepts JSON body with fields to update (e.g., read, author, name)
     """
+    logger.info("update_book_handler invoked")
+    
     try:
         # Get the book ID from path parameters
         path_parameters = event.get('pathParameters', {})
         if not path_parameters or 'id' not in path_parameters:
+            logger.warning("Missing book ID in path parameters")
             return _response(400, {
                 'error': 'Bad Request',
                 'message': 'Book ID is required in path'
             })
         
         book_id = unquote(path_parameters['id'])
+        logger.info(f"Updating book: {book_id}")
         
         # Parse request body
         try:
             body = json.loads(event.get('body', '{}'))
         except json.JSONDecodeError:
+            logger.warning("Invalid JSON in request body")
             return _response(400, {
                 'error': 'Bad Request',
                 'message': 'Invalid JSON in request body'
             })
+        
+        # Validate input types and constraints
+        if 'read' in body:
+            if not isinstance(body['read'], bool):
+                return _response(400, {
+                    'error': 'Bad Request',
+                    'message': 'Field "read" must be a boolean'
+                })
+        
+        if 'author' in body:
+            if not isinstance(body['author'], str):
+                return _response(400, {
+                    'error': 'Bad Request',
+                    'message': 'Field "author" must be a string'
+                })
+            if len(body['author']) > 500:
+                return _response(400, {
+                    'error': 'Bad Request',
+                    'message': 'Field "author" exceeds maximum length of 500 characters'
+                })
+        
+        if 'name' in body:
+            if not isinstance(body['name'], str):
+                return _response(400, {
+                    'error': 'Bad Request',
+                    'message': 'Field "name" must be a string'
+                })
+            if len(body['name']) > 500:
+                return _response(400, {
+                    'error': 'Bad Request',
+                    'message': 'Field "name" exceeds maximum length of 500 characters'
+                })
+            if len(body['name']) == 0:
+                return _response(400, {
+                    'error': 'Bad Request',
+                    'message': 'Field "name" cannot be empty'
+                })
         
         # Build update expression dynamically
         update_expr_parts = []
@@ -236,6 +295,7 @@ def update_book_handler(event, context):
         
         # Update the item in DynamoDB
         try:
+            logger.info(f"Updating DynamoDB item {book_id} with fields: {list(expr_attr_names.values())}")
             response = books_table.update_item(
                 Key={'id': book_id},
                 UpdateExpression=update_expression,
@@ -246,6 +306,7 @@ def update_book_handler(event, context):
             )
             
             updated_item = response['Attributes']
+            logger.info(f"Successfully updated book: {book_id}")
             
             return _response(200, {
                 'id': updated_item.get('id'),
@@ -258,6 +319,7 @@ def update_book_handler(event, context):
             
         except ClientError as e:
             if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+                logger.warning(f"Book not found: {book_id}")
                 return _response(404, {
                     'error': 'Not Found',
                     'message': f'Book "{book_id}" not found'
@@ -265,7 +327,7 @@ def update_book_handler(event, context):
             raise
         
     except Exception as e:
-        print(f"Error updating book: {str(e)}")
+        logger.error(f"Error updating book: {str(e)}", exc_info=True)
         return _response(500, {
             'error': 'Internal Server Error',
             'message': str(e)
@@ -301,8 +363,8 @@ def s3_trigger_handler(event, context):
             # Build S3 URL
             s3_url = f"s3://{bucket_name}/{s3_key}"
             
-            # Get timestamp
-            timestamp = datetime.utcnow().isoformat() + 'Z'
+            # Get timestamp (use timezone-aware UTC)
+            timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
             
             # Create DynamoDB item
             item = {

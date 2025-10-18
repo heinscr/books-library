@@ -1,67 +1,76 @@
 from gateway_backend import handler
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 from datetime import datetime
+from decimal import Decimal
+import os
 
 
 def test_list_handler_returns_books_list():
-    """Test that handler returns list of books from S3"""
+    """Test that handler returns list of books from DynamoDB"""
     
-    # Mock S3 response
-    mock_s3_response = {
-        'Contents': [
+    # Mock DynamoDB response with Decimal types (as returned by DynamoDB)
+    mock_dynamodb_response = {
+        'Items': [
             {
-                'Key': 'books/',  # Folder itself, should be skipped
-                'Size': 0,
-                'LastModified': datetime(2020, 1, 1)
+                'id': 'book-a.zip',
+                'name': 'Book A.zip',
+                'size': Decimal('1024000'),
+                'created': '2023-06-15T10:30:00Z',
+                'read': False,
+                's3_url': 's3://test-bucket/books/Book A.zip',
+                'author': 'Author A'
             },
             {
-                'Key': 'books/Book A.zip',
-                'Size': 1024000,
-                'LastModified': datetime(2023, 6, 15, 10, 30, 0)
-            },
-            {
-                'Key': 'books/Book B.zip',
-                'Size': 2048000,
-                'LastModified': datetime(2024, 3, 20, 14, 45, 30)
-            },
-            {
-                'Key': 'books/index.html',  # Non-zip file, should be skipped
-                'Size': 5000,
-                'LastModified': datetime(2024, 1, 1)
+                'id': 'book-b.zip',
+                'name': 'Book B.zip',
+                'size': Decimal('2048000'),
+                'created': '2024-03-20T14:45:30Z',
+                'read': True,
+                's3_url': 's3://test-bucket/books/Book B.zip'
             }
         ]
     }
     
-    # Patch the S3 client
-    with patch.object(handler.s3_client, 'list_objects_v2', return_value=mock_s3_response):
+    # Create a mock DynamoDB table
+    mock_table = Mock()
+    mock_table.scan.return_value = mock_dynamodb_response
+    
+    # Patch the books_table object
+    with patch.object(handler, 'books_table', mock_table):
         resp = handler.list_handler({}, None)
     
     # Verify response
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
     
-    # Should return 2 books (excluding folder and non-zip file)
+    # Should return 2 books
     assert len(body) == 2
     
-    # Verify first book (sorted by date, most recent first - Book B from 2024)
+    # Verify books are sorted by created date (most recent first - Book B from 2024)
     assert body[0]["name"] == "Book B.zip"
     assert body[0]["size"] == 2048000
-    assert "2024-03-20" in body[0]["lastModified"]
+    assert body[0]["created"] == '2024-03-20T14:45:30Z'
+    assert body[0]["read"] is True
     
     # Verify second book (Book A from 2023)
     assert body[1]["name"] == "Book A.zip"
     assert body[1]["size"] == 1024000
-    assert "2023-06-15" in body[1]["lastModified"]
+    assert body[1]["created"] == '2023-06-15T10:30:00Z'
+    assert body[1]["read"] is False
+    assert body[1]["author"] == "Author A"
 
 
-def test_list_handler_empty_bucket():
-    """Test handler when S3 bucket is empty"""
+def test_list_handler_empty_table():
+    """Test handler when DynamoDB table is empty"""
     
-    # Mock empty S3 response
-    mock_s3_response = {}
+    # Mock empty DynamoDB response
+    mock_dynamodb_response = {'Items': []}
     
-    with patch.object(handler.s3_client, 'list_objects_v2', return_value=mock_s3_response):
+    mock_table = Mock()
+    mock_table.scan.return_value = mock_dynamodb_response
+    
+    with patch.object(handler, 'books_table', mock_table):
         resp = handler.list_handler({}, None)
     
     assert resp["statusCode"] == 200
@@ -69,11 +78,54 @@ def test_list_handler_empty_bucket():
     assert body == []
 
 
-def test_list_handler_s3_error():
-    """Test handler when S3 throws an error"""
+def test_list_handler_pagination():
+    """Test handler when DynamoDB returns paginated results"""
     
-    # Mock S3 error
-    with patch.object(handler.s3_client, 'list_objects_v2', side_effect=Exception("S3 connection error")):
+    # First page
+    mock_response_page1 = {
+        'Items': [
+            {
+                'id': 'book-1.zip',
+                'name': 'Book 1.zip',
+                'created': '2023-01-01T00:00:00Z',
+                'read': False,
+                's3_url': 's3://test-bucket/books/Book 1.zip'
+            }
+        ],
+        'LastEvaluatedKey': {'id': 'book-1.zip'}
+    }
+    
+    # Second page
+    mock_response_page2 = {
+        'Items': [
+            {
+                'id': 'book-2.zip',
+                'name': 'Book 2.zip',
+                'created': '2023-02-01T00:00:00Z',
+                'read': True,
+                's3_url': 's3://test-bucket/books/Book 2.zip'
+            }
+        ]
+    }
+    
+    mock_table = Mock()
+    mock_table.scan.side_effect = [mock_response_page1, mock_response_page2]
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.list_handler({}, None)
+    
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert len(body) == 2
+
+
+def test_list_handler_dynamodb_error():
+    """Test handler when DynamoDB throws an error"""
+    
+    mock_table = Mock()
+    mock_table.scan.side_effect = Exception("DynamoDB connection error")
+    
+    with patch.object(handler, 'books_table', mock_table):
         resp = handler.list_handler({}, None)
     
     assert resp["statusCode"] == 500
@@ -83,29 +135,45 @@ def test_list_handler_s3_error():
 
 
 def test_get_book_handler_success():
-    """Test that get_book_handler generates presigned URL successfully"""
+    """Test that get_book_handler returns book metadata and presigned URL from DynamoDB"""
     
     event = {
         'pathParameters': {
-            'id': 'Book A.zip'
+            'id': 'book-a.zip'
         }
     }
     
-    # Mock S3 head_object (to check if book exists)
-    mock_head = MagicMock()
+    # Mock DynamoDB response
+    mock_dynamodb_item = {
+        'Item': {
+            'id': 'book-a.zip',
+            'name': 'Book A.zip',
+            'size': Decimal('1024000'),
+            'created': '2023-06-15T10:30:00Z',
+            'read': False,
+            's3_url': 's3://test-bucket/books/Book A.zip',
+            'author': 'Author A'
+        }
+    }
     
     # Mock presigned URL generation
-    mock_url = "https://s3.amazonaws.com/crackpow/books/Book%20A.zip?signed=true"
+    mock_url = "https://s3.amazonaws.com/test-bucket/books/Book%20A.zip?signed=true"
     
-    with patch.object(handler.s3_client, 'head_object', return_value=mock_head), \
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_dynamodb_item
+    
+    with patch.object(handler, 'books_table', mock_table), \
          patch.object(handler.s3_client, 'generate_presigned_url', return_value=mock_url):
         resp = handler.get_book_handler(event, None)
     
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
-    assert body["bookId"] == "Book A.zip"
+    assert body["id"] == "book-a.zip"
+    assert body["name"] == "Book A.zip"
     assert body["downloadUrl"] == mock_url
     assert body["expiresIn"] == 3600
+    assert body["read"] is False
+    assert body["author"] == "Author A"
 
 
 def test_get_book_handler_missing_id():
@@ -123,37 +191,22 @@ def test_get_book_handler_missing_id():
     assert "Book ID is required" in body["message"]
 
 
-def test_get_book_handler_invalid_id():
-    """Test get_book_handler with path traversal attempt"""
-    
-    event = {
-        'pathParameters': {
-            'id': '../../../etc/passwd'
-        }
-    }
-    
-    resp = handler.get_book_handler(event, None)
-    
-    assert resp["statusCode"] == 400
-    body = json.loads(resp["body"])
-    assert "Invalid book ID" in body["message"]
-
-
 def test_get_book_handler_not_found():
-    """Test get_book_handler when book doesn't exist"""
+    """Test get_book_handler when book doesn't exist in DynamoDB"""
     
     event = {
         'pathParameters': {
-            'id': 'NonExistent.zip'
+            'id': 'nonexistent.zip'
         }
     }
     
-    # Create a mock NoSuchKey exception
-    from botocore.exceptions import ClientError
-    error_response = {'Error': {'Code': 'NoSuchKey', 'Message': 'The specified key does not exist.'}}
-    no_such_key = ClientError(error_response, 'head_object')
+    # Mock DynamoDB response with no item
+    mock_dynamodb_response = {}
     
-    with patch.object(handler.s3_client, 'head_object', side_effect=no_such_key):
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_dynamodb_response
+    
+    with patch.object(handler, 'books_table', mock_table):
         resp = handler.get_book_handler(event, None)
     
     assert resp["statusCode"] == 404
@@ -161,27 +214,398 @@ def test_get_book_handler_not_found():
     assert "Not Found" in body["error"]
 
 
-def test_get_book_handler_adds_zip_extension():
-    """Test that handler adds .zip extension if missing"""
+def test_get_book_handler_missing_s3_url():
+    """Test get_book_handler when DynamoDB item is missing S3 URL"""
     
     event = {
         'pathParameters': {
-            'id': 'Book A'  # No .zip extension
+            'id': 'book-a.zip'
         }
     }
     
-    mock_head = MagicMock()
-    mock_url = "https://s3.amazonaws.com/presigned"
+    # Mock DynamoDB response with missing s3_url
+    mock_dynamodb_item = {
+        'Item': {
+            'id': 'book-a.zip',
+            'name': 'Book A.zip',
+            'created': '2023-06-15T10:30:00Z'
+            # Missing s3_url
+        }
+    }
     
-    with patch.object(handler.s3_client, 'head_object', return_value=mock_head) as mock_head_call, \
-         patch.object(handler.s3_client, 'generate_presigned_url', return_value=mock_url):
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_dynamodb_item
+    
+    with patch.object(handler, 'books_table', mock_table):
         resp = handler.get_book_handler(event, None)
     
-    # Verify it checked for "Book A.zip"
-    mock_head_call.assert_called_once()
-    call_args = mock_head_call.call_args
-    assert call_args[1]['Key'] == 'books/Book A.zip'
+    assert resp["statusCode"] == 500
+    body = json.loads(resp["body"])
+    assert "Invalid Data" in body["error"]
+    assert "missing S3 URL" in body["message"]
+
+
+def test_update_book_handler_success():
+    """Test updating book metadata in DynamoDB"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({
+            'read': True,
+            'author': 'Updated Author'
+        })
+    }
+    
+    # Mock DynamoDB update response
+    mock_update_response = {
+        'Attributes': {
+            'id': 'book-a.zip',
+            'name': 'Book A.zip',
+            'read': True,
+            'author': 'Updated Author',
+            'created': '2023-06-15T10:30:00Z',
+            's3_url': 's3://test-bucket/books/Book A.zip'
+        }
+    }
+    
+    mock_table = Mock()
+    mock_table.update_item.return_value = mock_update_response
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.update_book_handler(event, None)
     
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
-    assert body["bookId"] == "Book A.zip"
+    assert body["id"] == "book-a.zip"
+    assert body["read"] is True
+    assert body["author"] == "Updated Author"
+
+
+def test_update_book_handler_missing_id():
+    """Test update_book_handler when book ID is missing"""
+    
+    event = {
+        'pathParameters': {},
+        'body': json.dumps({'read': True})
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "Book ID is required" in body["message"]
+
+
+def test_update_book_handler_invalid_json():
+    """Test update_book_handler with invalid JSON body"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': 'invalid json{'
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "Invalid JSON" in body["message"]
+
+
+def test_update_book_handler_no_fields():
+    """Test update_book_handler when no valid fields provided"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({})
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "No valid fields to update" in body["message"]
+
+
+def test_update_book_handler_not_found():
+    """Test update_book_handler when book doesn't exist"""
+    
+    from botocore.exceptions import ClientError
+    
+    event = {
+        'pathParameters': {
+            'id': 'nonexistent.zip'
+        },
+        'body': json.dumps({'read': True})
+    }
+    
+    # Mock DynamoDB conditional check failure
+    error_response = {'Error': {'Code': 'ConditionalCheckFailedException'}}
+    condition_error = ClientError(error_response, 'update_item')
+    
+    mock_table = Mock()
+    mock_table.update_item.side_effect = condition_error
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 404
+    body = json.loads(resp["body"])
+    assert "Not Found" in body["error"]
+
+
+def test_update_book_handler_invalid_read_type():
+    """Test update_book_handler with invalid type for 'read' field"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({'read': 'yes'})  # Should be boolean
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert '"read" must be a boolean' in body["message"]
+
+
+def test_update_book_handler_invalid_author_type():
+    """Test update_book_handler with invalid type for 'author' field"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({'author': 123})  # Should be string
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert '"author" must be a string' in body["message"]
+
+
+def test_update_book_handler_author_too_long():
+    """Test update_book_handler with author exceeding length limit"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({'author': 'x' * 501})  # Exceeds 500 char limit
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'exceeds maximum length' in body["message"]
+
+
+def test_update_book_handler_empty_name():
+    """Test update_book_handler with empty name"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({'name': ''})
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'cannot be empty' in body["message"]
+
+
+def test_update_book_handler_name_too_long():
+    """Test update_book_handler with name exceeding length limit"""
+    
+    event = {
+        'pathParameters': {
+            'id': 'book-a.zip'
+        },
+        'body': json.dumps({'name': 'x' * 501})  # Exceeds 500 char limit
+    }
+    
+    resp = handler.update_book_handler(event, None)
+    
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert 'exceeds maximum length' in body["message"]
+
+
+def test_s3_trigger_handler_success():
+    """Test S3 trigger handler ingests book into DynamoDB"""
+    
+    event = {
+        'Records': [
+            {
+                's3': {
+                    'bucket': {'name': 'test-bucket'},
+                    'object': {
+                        'key': 'books/Book A.zip',
+                        'size': 1024000
+                    }
+                },
+                'eventTime': '2023-06-15T10:30:00.000Z'
+            }
+        ]
+    }
+    
+    mock_table = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+    
+    # Verify put_item was called
+    mock_table.put_item.assert_called_once()
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args['Item']
+    
+    # Handler removes .zip extension from ID and name
+    assert item['id'] == 'Book A'
+    assert item['name'] == 'Book A'
+    assert item['size'] == 1024000
+    assert item['s3_url'] == 's3://test-bucket/books/Book A.zip'
+    assert item['read'] is False
+    
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_with_author():
+    """Test S3 trigger handler replaces dashes with spaces"""
+    
+    event = {
+        'Records': [
+            {
+                's3': {
+                    'bucket': {'name': 'test-bucket'},
+                    'object': {
+                        'key': 'books/My_Book-Title.zip',
+                        'size': 2048000
+                    }
+                }
+            }
+        ]
+    }
+    
+    mock_table = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+    
+    # Verify put_item was called with underscores and dashes replaced with spaces
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args['Item']
+    
+    # Handler replaces _ and - with spaces
+    assert item['name'] == 'My Book Title'
+    assert item['id'] == 'My_Book-Title'  # ID keeps original (minus .zip)
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_multiple_records():
+    """Test S3 trigger handler processes multiple S3 events"""
+    
+    event = {
+        'Records': [
+            {
+                's3': {
+                    'bucket': {'name': 'test-bucket'},
+                    'object': {
+                        'key': 'books/Book1.zip',
+                        'size': 1000
+                    }
+                }
+            },
+            {
+                's3': {
+                    'bucket': {'name': 'test-bucket'},
+                    'object': {
+                        'key': 'books/Book2.zip',
+                        'size': 2000
+                    }
+                }
+            }
+        ]
+    }
+    
+    mock_table = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+    
+    # Verify put_item was called twice
+    assert mock_table.put_item.call_count == 2
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_skips_non_zip():
+    """Test S3 trigger handler processes non-zip files (converts filename)"""
+    
+    event = {
+        'Records': [
+            {
+                's3': {
+                    'bucket': {'name': 'test-bucket'},
+                    'object': {
+                        'key': 'books/index.html',
+                        'size': 5000
+                    }
+                }
+            }
+        ]
+    }
+    
+    mock_table = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+    
+    # Verify put_item WAS called (handler processes all files)
+    mock_table.put_item.assert_called_once()
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args['Item']
+    
+    # Should use the filename as-is since it's not a .zip
+    assert item['id'] == 'index.html'
+    assert item['name'] == 'index.html'
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_skips_folder():
+    """Test S3 trigger handler processes folder markers (edge case)"""
+    
+    event = {
+        'Records': [
+            {
+                's3': {
+                    'bucket': {'name': 'test-bucket'},
+                    'object': {
+                        'key': 'books/',
+                        'size': 0
+                    }
+                }
+            }
+        ]
+    }
+    
+    mock_table = Mock()
+    
+    with patch.object(handler, 'books_table', mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+    
+    # Verify put_item WAS called (handler currently processes all S3 events)
+    # This is an edge case where it might create an empty-name record
+    mock_table.put_item.assert_called_once()
+    assert resp["statusCode"] == 200

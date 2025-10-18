@@ -1,0 +1,5 @@
+# Lambda Dependencies
+# Note: boto3 and botocore are available in Lambda runtime by default
+# but pinning versions ensures consistency across environments
+
+boto3>=1.28.0
