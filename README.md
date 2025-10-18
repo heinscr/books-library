@@ -101,6 +101,20 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - An S3 bucket for storing books
 - A Cognito User Pool set up
 
+### Runtime & Dependencies
+
+**Lambda Runtime:**
+- **Python**: 3.12
+- **boto3**: Provided by AWS Lambda runtime (~1.34.x, AWS managed)
+- **botocore**: Provided by AWS Lambda runtime (~1.34.x, AWS managed)
+
+**Local Development:**
+- **boto3**: 1.40.55 (pinned in `requirements.txt` and `Pipfile`)
+- **botocore**: 1.40.55 (pinned, dependency of boto3)
+- **pytest**: Latest (dev dependency)
+
+**Note:** Lambda runtime includes boto3/botocore by default. The pinned versions in `requirements.txt` are for local development consistency. Lambda will use its own managed versions, which are typically slightly behind the latest release but are automatically updated by AWS.
+
 ### 1. Configure AWS Profile
 
 ```bash

@@ -7,7 +7,9 @@ verify_ssl = true
 python_version = "3.12"
 
 [packages]
-boto3 = "*"
+# Pin to specific version for reproducibility
+# Lambda runtime provides boto3, but we pin for local dev consistency
+boto3 = "==1.40.55"
 
 [dev-packages]
 pytest = "*"

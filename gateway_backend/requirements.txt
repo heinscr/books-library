@@ -1,5 +1,17 @@
 # Lambda Dependencies
 # Note: boto3 and botocore are available in Lambda runtime by default
 # but pinning versions ensures consistency across environments
+#
+# Lambda Python 3.12 Runtime (as of October 2024):
+# - boto3: ~1.34.x (AWS managed, auto-updated)
+# - botocore: ~1.34.x (AWS managed, auto-updated)
+#
+# Development versions (pinned for reproducibility):
+boto3==1.40.55
+botocore==1.40.55
 
-boto3>=1.28.0
+# Note: These pinned versions are for local development and testing.
+# Lambda runtime will use its own boto3 version, which is typically
+# slightly behind the latest release. If you encounter version
+# conflicts, you can remove these from the deployment package
+# and rely on the Lambda runtime versions.
