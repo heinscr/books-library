@@ -371,7 +371,7 @@ function renderBooks(books) {
         let bookInfo = `
             <div class="book-header">
                 <div class="book-name">${escapeHtml(book.name)}</div>
-                <div class="read-toggle ${isRead ? 'read' : ''}" onclick="toggleReadStatus('${escapeHtml(book.id)}', event)" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="${escapeHtml(book.id)}" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
                     ${isRead ? '✓' : '○'}
                 </div>
             </div>
@@ -400,8 +400,11 @@ function renderBooks(books) {
         
         // Add click handler for the card - opens details modal, unless clicking special elements
         bookCard.addEventListener('click', (e) => {
-            // Don't open modal if clicking the read toggle
-            if (e.target.closest('.read-toggle')) {
+            // Handle read toggle click
+            const readToggle = e.target.closest('.read-toggle');
+            if (readToggle) {
+                const bookId = readToggle.getAttribute('data-book-id');
+                toggleReadStatus(bookId, e);
                 return;
             }
             
