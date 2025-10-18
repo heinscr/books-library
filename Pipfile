@@ -13,3 +13,6 @@ boto3 = "==1.40.55"
 
 [dev-packages]
 pytest = "*"
+black = "*"
+ruff = "*"
+mypy = "*"

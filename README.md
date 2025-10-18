@@ -389,11 +389,12 @@ Sets metadata (author) on a book after S3 upload completes.
 }
 ```
 
-## 🧪 Testing
+## 🧪 Testing & Code Quality
 
 **Comprehensive test coverage** with 42 unit tests covering all Lambda handlers.
 
-Run tests:
+### Running Tests
+
 ```bash
 # Install dependencies
 pipenv install --dev
@@ -406,6 +407,42 @@ PYTHONPATH=. pipenv run pytest tests/test_handler.py -v
 
 # Run with coverage (requires pytest-cov)
 PYTHONPATH=. pipenv run pytest --cov=gateway_backend --cov-report=term-missing
+```
+
+### Code Quality Tools
+
+The project uses modern Python linting and formatting tools configured in `pyproject.toml`:
+
+**Format code with Black:**
+```bash
+# Check formatting
+pipenv run black --check gateway_backend/ tests/
+
+# Auto-format
+pipenv run black gateway_backend/ tests/
+```
+
+**Lint with Ruff:**
+```bash
+# Check for linting issues
+pipenv run ruff check gateway_backend/ tests/
+
+# Auto-fix issues
+pipenv run ruff check --fix gateway_backend/ tests/
+```
+
+**Type check with MyPy (optional):**
+```bash
+pipenv run mypy gateway_backend/ tests/
+```
+
+**Run all quality checks:**
+```bash
+# Run format, lint, and test checks
+./scripts/lint.sh
+
+# Include type checking
+./scripts/lint.sh --with-mypy
 ```
 
 **Test Configuration:**
