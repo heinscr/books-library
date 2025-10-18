@@ -19,25 +19,29 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 │  └─ Routes:                                                     │
 │     ├─ GET /books - List all books with metadata                │
 │     ├─ GET /books/{id} - Get presigned download URL             │
-│     └─ PATCH /books/{id} - Update book metadata (read status)   │
+│     ├─ PATCH /books/{id} - Update book metadata (read status)   │
+│     ├─ POST /upload - Get presigned URL for S3 upload           │
+│     └─ POST /upload/metadata - Set author after upload          │
 └─────────────────────────────────────────────────────────────────┘
                             │
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ BooksFunction│  │GetBookFunc   │  │UpdateBookFunc│
-│ (List books) │  │ (Download)   │  │(Update meta) │
-└──────────────┘  └──────────────┘  └──────────────┘
-        │                   │                   │
-        └───────────────────┼───────────────────┘
-                            ▼
-                ┌──────────────────────┐
-                │  DynamoDB Table      │
-                │  Books (metadata)    │
-                │  ├─ id, name, author │
-                │  ├─ size, created    │
-                │  └─ read status      │
-                └──────────────────────┘
+        ┌───────────────────┼───────────────────┬──────────────────┐
+        ▼                   ▼                   ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐
+│ BooksFunction│  │GetBookFunc   │  │UpdateBookFunc│  │ UploadFunction   │
+│ (List books) │  │ (Download)   │  │(Update meta) │  │ (Presigned URL)  │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘
+        │                   │                   │              │
+        └───────────────────┼───────────────────┼──────────────┘
+                            ▼                   │
+                ┌──────────────────────┐        │
+                │  DynamoDB Table      │        │
+                │  Books (metadata)    │◄───────┤
+                │  ├─ id, name, author │        │
+                │  ├─ size, created    │        │
+                │  └─ read status      │  ┌─────▼────────────────┐
+                └──────────────────────┘  │SetMetadataFunction   │
+                                          │(Set author on upload)│
+                                          └──────────────────────┘
                             
 ┌──────────────────────┐           ┌──────────────────────┐
 │  S3 Bucket           │ ─trigger─>│ S3TriggerFunction    │
@@ -53,17 +57,21 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 - 🔐 AWS Cognito authentication with auto token refresh
 - 📚 Auto-loading book list on login
 - ⬇️ One-click downloads via presigned URLs
+- 📤 **NEW: Web-based book upload with optional author field**
 - ✅ Read/Unread status tracking (synced with backend)
-- 📊 File size display in MB
+- 📊 File size display (MB/GB)
 - 👤 Author extraction from "Author - Title.zip" format
 - 🎨 Modern card-based grid layout
 - 🔔 Toast notifications (no layout shift)
+- 📈 Real-time upload progress with size tracking
 
 ### Backend
 - 🚀 Serverless architecture (AWS Lambda + DynamoDB)
 - 🔒 Cognito-protected API endpoints
 - 📦 DynamoDB for fast metadata access (no S3 listing required)
 - 🔗 Generates secure presigned URLs (1-hour expiration)
+- 📤 **NEW: Presigned PUT URL generation for direct S3 uploads (up to 5GB)**
+- 🏷️ **NEW: Post-upload metadata endpoint for author attribution**
 - 🛡️ Path traversal protection
 - 📊 Sorted by date (newest first)
 - 🌐 CORS enabled for cross-origin requests
@@ -280,6 +288,55 @@ Updates book metadata (currently supports read status).
 }
 ```
 
+### POST /upload
+Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
+
+**Headers:**
+- `Authorization`: Cognito JWT token
+
+**Body:**
+```json
+{
+  "filename": "Book Title.zip",
+  "fileSize": 459816876,
+  "author": "Author Name"
+}
+```
+
+**Response:**
+```json
+{
+  "uploadUrl": "https://s3.amazonaws.com/...",
+  "method": "PUT",
+  "filename": "Book Title.zip",
+  "s3Key": "books/Book Title.zip",
+  "expiresIn": 3600
+}
+```
+
+### POST /upload/metadata
+Sets metadata (author) on a book after S3 upload completes.
+
+**Headers:**
+- `Authorization`: Cognito JWT token
+
+**Body:**
+```json
+{
+  "bookId": "Book Title",
+  "author": "Author Name"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Metadata updated successfully",
+  "bookId": "Book Title",
+  "author": "Author Name"
+}
+```
+
 ## 🧪 Testing
 
 Run unit tests:
@@ -297,6 +354,14 @@ python -m pytest tests/
 - ✅ JWT tokens stored in localStorage
 
 ## 🎨 Frontend Features
+
+### Book Upload
+- Click the **"📤 Upload Book"** button (visible when authenticated)
+- Select a `.zip` file (up to 5GB)
+- Optionally enter author name
+- Real-time progress bar with size tracking (MB/GB)
+- Automatic retry logic for metadata updates
+- Books appear in list immediately after upload
 
 ### Read/Unread Tracking
 - Click the circle icon to mark books as read (✓)

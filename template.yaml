@@ -117,6 +117,56 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
 
+  UploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.upload_handler
+      Runtime: python3.12
+      CodeUri: gateway_backend/
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          BOOKS_TABLE: !Ref BooksTable
+          BUCKET_NAME: !Ref BucketName
+          BOOKS_PREFIX: books/
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref BucketName
+      Events:
+        UploadApi:
+          Type: Api
+          Properties:
+            Path: /upload
+            Method: post
+            RestApiId: !Ref BooksApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  SetUploadMetadataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handler.set_upload_metadata_handler
+      Runtime: python3.12
+      CodeUri: gateway_backend/
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          BOOKS_TABLE: !Ref BooksTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BooksTable
+      Events:
+        SetMetadataApi:
+          Type: Api
+          Properties:
+            Path: /upload/metadata
+            Method: post
+            RestApiId: !Ref BooksApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
   S3TriggerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -144,7 +194,7 @@ Resources:
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"
-        AllowMethods: "'GET,PATCH,OPTIONS'"
+        AllowMethods: "'GET,POST,PATCH,OPTIONS'"
       Auth:
         Authorizers:
           CognitoAuthorizer:

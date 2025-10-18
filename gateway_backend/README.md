@@ -4,6 +4,14 @@ Lambda functions for the Books Library API.
 
 ## Handler Functions
 
+**Total: 6 Lambda functions**
+- `list_handler` - List all books
+- `get_book_handler` - Get book and download URL
+- `update_book_handler` - Update book metadata
+- `upload_handler` - Generate presigned upload URL
+- `set_upload_metadata_handler` - Set author after upload
+- `s3_trigger_handler` - Auto-populate from S3 events
+
 ### `list_handler(event, context)`
 Lists all books from DynamoDB with complete metadata.
 
@@ -59,11 +67,56 @@ Updates book metadata in DynamoDB (e.g., read status).
 }
 ```
 
+### `upload_handler(event, context)`
+Generates a presigned PUT URL for uploading books directly to S3.
+
+**Parameters:**
+- Body: JSON with `filename` (required), `fileSize` (optional), `author` (optional)
+
+**Returns:**
+```json
+{
+  "uploadUrl": "https://s3.amazonaws.com/...",
+  "method": "PUT",
+  "filename": "Book Title.zip",
+  "s3Key": "books/Book Title.zip",
+  "expiresIn": 3600
+}
+```
+
+**Features:**
+- Supports files up to 5GB
+- 60-minute expiration for large uploads
+- Author field passed through (used by metadata endpoint)
+- Validates .zip file extension
+
+### `set_upload_metadata_handler(event, context)`
+Sets metadata (author) on a book after S3 upload completes.
+
+**Parameters:**
+- Body: JSON with `bookId` (required) and `author` (optional)
+
+**Returns:**
+```json
+{
+  "message": "Metadata updated successfully",
+  "bookId": "Book Title",
+  "author": "Author Name"
+}
+```
+
+**Features:**
+- Called by frontend after S3 upload
+- Updates DynamoDB record with author field
+- Returns 404 if book not found (S3 trigger hasn't processed yet)
+- Validates author length (max 500 characters)
+
 ### `s3_trigger_handler(event, context)`
 S3 event trigger that auto-populates DynamoDB when books are uploaded.
 
 **Triggered by:** S3 ObjectCreated events in the books/ prefix
 **Creates:** DynamoDB record with extracted metadata (name, author, size, created date)
+**Features:** URL-decodes filenames (handles spaces and special characters)
 
 ## Environment Variables
 

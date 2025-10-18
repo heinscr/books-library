@@ -243,6 +243,7 @@ function showLoggedInState(email) {
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('userAvatar').style.display = 'flex';
     document.getElementById('menuEmail').textContent = email;
+    document.getElementById('controlsRow').style.display = 'flex';
     
     // Set avatar initial (first letter of email)
     const initial = email.charAt(0).toUpperCase();
@@ -252,7 +253,7 @@ function showLoggedInState(email) {
 function showLoggedOutState() {
     document.getElementById('loginForm').style.display = 'flex';
     document.getElementById('userAvatar').style.display = 'none';
-    document.getElementById('filterControls').style.display = 'none';
+    document.getElementById('controlsRow').style.display = 'none';
     allBooks = [];
 }
 
@@ -312,10 +313,8 @@ async function fetchBooks() {
         // Store books globally for filtering
         allBooks = books;
         
-        // Show filter controls if we have books
-        if (books.length > 0) {
-            document.getElementById('filterControls').style.display = 'flex';
-        }
+        // Controls row is already shown when logged in (contains upload button)
+        // No need to show/hide it here
         
         // Render the books
         renderBooks(books);
@@ -605,3 +604,267 @@ async function downloadBook(bookId) {
         console.error('Error downloading book:', error);
     }
 }
+
+// Upload functionality
+let selectedFile = null;
+
+function showUploadModal() {
+    document.getElementById('uploadModal').style.display = 'flex';
+    // Reset form
+    document.getElementById('bookFile').value = '';
+    document.getElementById('authorName').value = '';
+    document.getElementById('fileInfo').classList.remove('show');
+    document.getElementById('uploadButton').disabled = true;
+    document.getElementById('uploadProgress').style.display = 'none';
+    selectedFile = null;
+}
+
+function closeUploadModal() {
+    document.getElementById('uploadModal').style.display = 'none';
+}
+
+function handleFileSelect() {
+    const fileInput = document.getElementById('bookFile');
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadButton = document.getElementById('uploadButton');
+    
+    if (fileInput.files.length > 0) {
+        selectedFile = fileInput.files[0];
+        
+        // Validate file type
+        if (!selectedFile.name.toLowerCase().endsWith('.zip')) {
+            showAlert('❌ Please select a .zip file', 'error');
+            fileInput.value = '';
+            selectedFile = null;
+            uploadButton.disabled = true;
+            fileInfo.classList.remove('show');
+            return;
+        }
+        
+        // Validate file size (5GB max)
+        const maxSize = 5 * 1024 * 1024 * 1024; // 5GB in bytes
+        if (selectedFile.size > maxSize) {
+            showAlert('❌ File size exceeds 5GB limit', 'error');
+            fileInput.value = '';
+            selectedFile = null;
+            uploadButton.disabled = true;
+            fileInfo.classList.remove('show');
+            return;
+        }
+        
+        // Show file info
+        const sizeInMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+        const sizeInGB = (selectedFile.size / (1024 * 1024 * 1024)).toFixed(2);
+        const displaySize = selectedFile.size > 1024 * 1024 * 1024 ? `${sizeInGB} GB` : `${sizeInMB} MB`;
+        fileInfo.textContent = `✓ ${selectedFile.name} (${displaySize})`;
+        fileInfo.classList.add('show');
+        uploadButton.disabled = false;
+    } else {
+        selectedFile = null;
+        uploadButton.disabled = true;
+        fileInfo.classList.remove('show');
+    }
+}
+
+async function uploadBook() {
+    if (!selectedFile) {
+        showAlert('❌ Please select a file', 'error');
+        return;
+    }
+    
+    const authorInput = document.getElementById('authorName');
+    const author = authorInput.value.trim();
+    const uploadButton = document.getElementById('uploadButton');
+    const progressDiv = document.getElementById('uploadProgress');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    
+    try {
+        // Disable upload button
+        uploadButton.disabled = true;
+        uploadButton.textContent = 'Uploading...';
+        
+        // Step 1: Get presigned upload URL from backend
+        progressText.textContent = 'Preparing upload...';
+        progressDiv.style.display = 'block';
+        progressFill.style.width = '10%';
+        
+        const token = localStorage.getItem('idToken');
+        if (!token) {
+            throw new Error('Not authenticated. Please log in.');
+        }
+        
+        const uploadRequestBody = {
+            filename: selectedFile.name,
+            fileSize: selectedFile.size,
+            author: author || undefined
+        };
+        
+        // Upload endpoint is at /upload (not /books/upload)
+        const uploadUrl = API_URL.replace('/books', '') + '/upload';
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(uploadRequestBody)
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+            const refreshed = await refreshIdToken();
+            if (refreshed) {
+                return uploadBook(); // Retry with new token
+            } else {
+                throw new Error('Session expired. Please log in again.');
+            }
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const uploadData = await response.json();
+        progressFill.style.width = '30%';
+        
+        // Step 2: Upload file to S3 using presigned PUT URL with XMLHttpRequest for progress tracking
+        progressText.textContent = 'Uploading to S3...';
+        
+        await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 60; // 30% to 90% range
+                    progressFill.style.width = `${30 + percentComplete}%`;
+                    
+                    // Show upload size
+                    const mbLoaded = (e.loaded / 1024 / 1024).toFixed(1);
+                    const mbTotal = (e.total / 1024 / 1024).toFixed(1);
+                    if (e.total > 1024 * 1024 * 1024) {
+                        // Show in GB for large files
+                        const gbLoaded = (e.loaded / 1024 / 1024 / 1024).toFixed(2);
+                        const gbTotal = (e.total / 1024 / 1024 / 1024).toFixed(2);
+                        progressText.textContent = `Uploading: ${gbLoaded} GB / ${gbTotal} GB`;
+                    } else {
+                        progressText.textContent = `Uploading: ${mbLoaded} MB / ${mbTotal} MB`;
+                    }
+                }
+            });
+            
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    progressFill.style.width = '90%';
+                    progressText.textContent = 'Processing...';
+                    resolve();
+                } else {
+                    reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            });
+            
+            xhr.addEventListener('error', () => {
+                reject(new Error('Network error during S3 upload'));
+            });
+            
+            xhr.addEventListener('abort', () => {
+                reject(new Error('Upload was aborted'));
+            });
+            
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('Upload timed out'));
+            });
+            
+            // Set a longer timeout for large files (30 minutes)
+            xhr.timeout = 1800000;
+            
+            xhr.open('PUT', uploadData.uploadUrl);
+            xhr.setRequestHeader('Content-Type', 'application/zip');
+            xhr.send(selectedFile);
+        });
+        
+        progressFill.style.width = '95%';
+        progressText.textContent = 'Processing...';
+        
+        // Wait for S3 trigger to process and create DynamoDB record
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Step 3: Set author metadata if provided
+        if (author) {
+            try {
+                // Extract book ID from filename (remove .zip extension)
+                const bookId = selectedFile.name.replace('.zip', '');
+                
+                const metadataUrl = API_URL.replace('/books', '') + '/upload/metadata';
+                
+                // Retry logic in case S3 trigger hasn't finished yet
+                let retries = 3;
+                let success = false;
+                
+                while (retries > 0 && !success) {
+                    const metadataResponse = await fetch(metadataUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            bookId: bookId,
+                            author: author
+                        })
+                    });
+                    
+                    if (metadataResponse.ok) {
+                        console.log(`Successfully set author metadata for ${bookId}`);
+                        success = true;
+                    } else if (metadataResponse.status === 404) {
+                        // Record not found yet, S3 trigger still processing
+                        console.log(`Book record not ready yet, retrying... (${retries} attempts left)`);
+                        retries--;
+                        if (retries > 0) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                    } else {
+                        console.warn(`Failed to set author metadata: ${metadataResponse.status}`);
+                        break;
+                    }
+                }
+                
+                if (!success) {
+                    console.warn('Failed to set author metadata after retries');
+                }
+            } catch (metadataError) {
+                // Don't fail the entire upload if metadata update fails
+                console.warn('Failed to set author metadata:', metadataError);
+            }
+        }
+        
+        progressFill.style.width = '100%';
+        progressText.textContent = 'Upload complete!';
+        
+        showAlert(`✅ Successfully uploaded ${selectedFile.name}`, 'success');
+        
+        // Close modal after short delay
+        setTimeout(() => {
+            closeUploadModal();
+            // Refresh the books list
+            fetchBooks();
+        }, 1500);
+        
+    } catch (error) {
+        showAlert(`❌ Upload failed: ${error.message}`, 'error');
+        console.error('Error uploading book:', error);
+        uploadButton.disabled = false;
+        uploadButton.textContent = 'Upload';
+        progressDiv.style.display = 'none';
+    }
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('uploadModal');
+    if (e.target === modal) {
+        closeUploadModal();
+    }
+});
