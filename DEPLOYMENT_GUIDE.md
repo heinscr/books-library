@@ -69,7 +69,7 @@ python3 scripts/migrate-books.py
 ```
 
 This will:
-- Scan all .zip files in `s3://crackpow/books/`
+- Scan all .zip files in `s3://YOUR_BUCKET/books/`
 - Create DynamoDB records for each book
 - Extract author from filename if format is "Author - Title.zip"
 - Skip books that already exist in DynamoDB
@@ -77,13 +77,13 @@ This will:
 ### 5. Deploy Updated Frontend
 ```bash
 # Upload updated JavaScript
-aws s3 cp frontend/app.js s3://crackpow/books-app/
+aws s3 cp frontend/app.js s3://YOUR_BUCKET/books-app/
 
 # Upload updated CSS
-aws s3 cp frontend/styles.css s3://crackpow/books-app/
+aws s3 cp frontend/styles.css s3://YOUR_BUCKET/books-app/
 
 # Get CloudFront distribution ID
-aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[?DomainName=='crackpow.s3.amazonaws.com']].Id" --output text
+aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[?DomainName=='YOUR_BUCKET.s3.amazonaws.com']].Id" --output text
 
 # Invalidate CloudFront cache (replace <DIST_ID> with actual ID)
 aws cloudfront create-invalidation \
@@ -120,7 +120,7 @@ Upload a test book to verify automatic DynamoDB population:
 
 ```bash
 # Upload a test book
-aws s3 cp /path/to/test-book.zip s3://crackpow/books/
+aws s3 cp /path/to/test-book.zip s3://YOUR_BUCKET/books/
 
 # Check DynamoDB for the new record
 aws dynamodb get-item \
@@ -130,7 +130,7 @@ aws dynamodb get-item \
 ```
 
 #### Test Frontend
-1. Navigate to https://books.crackpow.com
+1. Navigate to https://your-domain.com
 2. Login with your Cognito credentials
 3. Verify books are displayed with:
    - Book name
@@ -151,8 +151,8 @@ If issues occur, you can rollback:
 git checkout HEAD~1 frontend/app.js frontend/styles.css
 
 # Deploy old version
-aws s3 cp frontend/app.js s3://crackpow/books-app/
-aws s3 cp frontend/styles.css s3://crackpow/books-app/
+aws s3 cp frontend/app.js s3://YOUR_BUCKET/books-app/
+aws s3 cp frontend/styles.css s3://YOUR_BUCKET/books-app/
 
 # Invalidate cache
 aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/app.js" "/styles.css"
@@ -180,7 +180,7 @@ aws cloudformation delete-stack --stack-name books --region us-east-2
 
 ### S3 Trigger not working
 - Check Lambda permissions: `aws lambda get-policy --function-name <function-arn>`
-- Check S3 bucket notification config: `aws s3api get-bucket-notification-configuration --bucket crackpow`
+- Check S3 bucket notification config: `aws s3api get-bucket-notification-configuration --bucket YOUR_BUCKET`
 - Check Lambda logs after uploading: CloudWatch → `/aws/lambda/books-S3TriggerFunction-*`
 
 ### Read status not saving

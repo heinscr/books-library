@@ -6,9 +6,9 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  books.crackpow.com (CloudFront + S3)                          │
+│  your-domain.com (CloudFront + S3)                             │
 │  ├─ Frontend: Vanilla JS SPA with Cognito auth                │
-│  └─ Serves from: s3://crackpow/books-app/                      │
+│  └─ Serves from: s3://YOUR_BUCKET/books-app/                  │
 └─────────────────────────────────────────────────────────────────┘
                             │
                             │ (Authenticated API Calls)
@@ -41,7 +41,7 @@ A serverless book management system built with AWS Lambda, API Gateway, Cognito,
                             
 ┌──────────────────────┐           ┌──────────────────────┐
 │  S3 Bucket           │ ─trigger─>│ S3TriggerFunction    │
-│  crackpow/books/     │           │ (Auto-add to DB)     │
+│  YOUR_BUCKET/books/  │           │ (Auto-add to DB)     │
 │  (Private .zip files)│           └──────────────────────┘
 └──────────────────────┘
 ```

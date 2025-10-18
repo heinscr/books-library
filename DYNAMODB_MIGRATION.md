@@ -67,7 +67,7 @@ Migrated the Books Library application from S3-based book listing to DynamoDB-ba
 - Uses conditional update (book must exist)
 
 ### S3TriggerFunction (NEW)
-- Triggered when .zip file uploaded to `s3://crackpow/books/`
+- Triggered when .zip file uploaded to `s3://YOUR_BUCKET/books/`
 - Automatically creates DynamoDB record
 - Parses author from filename if format is "Author - Title.zip"
 - Generates friendly name from filename
@@ -113,9 +113,9 @@ Migrated the Books Library application from S3-based book listing to DynamoDB-ba
 
 4. **Deploy Frontend**
    ```bash
-   aws s3 cp frontend/app.js s3://crackpow/books-app/ --profile craig-dev
-   aws s3 cp frontend/styles.css s3://crackpow/books-app/ --profile craig-dev
-   aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/app.js" "/styles.css" --profile craig-dev
+   aws s3 cp frontend/app.js s3://YOUR_BUCKET/books-app/ --profile YOUR_PROFILE
+   aws s3 cp frontend/styles.css s3://YOUR_BUCKET/books-app/ --profile YOUR_PROFILE
+   aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/app.js" "/styles.css" --profile YOUR_PROFILE
    ```
 
 ## Migration Considerations

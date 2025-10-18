@@ -67,7 +67,7 @@ S3 event trigger that auto-populates DynamoDB when books are uploaded.
 
 ## Environment Variables
 
-- `BUCKET_NAME`: S3 bucket name (default: crackpow)
+- `BUCKET_NAME`: S3 bucket name (default: your-bucket-name)
 - `BOOKS_PREFIX`: S3 prefix for books (default: books/)
 - `BOOKS_TABLE`: DynamoDB table name (set by SAM template)
 

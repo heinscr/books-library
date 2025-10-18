@@ -9,7 +9,7 @@ Configures S3 bucket notifications to trigger the Lambda function when books are
 
 **Usage:**
 ```bash
-# Use defaults (profile: default, region: us-east-2, bucket: crackpow)
+# Use defaults (profile: default, region: us-east-2, bucket: YOUR_BUCKET)
 ./configure-s3-trigger.sh
 
 # Use custom AWS profile
@@ -22,7 +22,7 @@ AWS_PROFILE=prod AWS_REGION=us-west-2 S3_BUCKET=my-books ./configure-s3-trigger.
 **Environment Variables:**
 - `AWS_PROFILE`: AWS profile name (default: `default`)
 - `AWS_REGION`: AWS region (default: `us-east-2`)
-- `S3_BUCKET`: S3 bucket name (default: `crackpow`)
+- `S3_BUCKET`: S3 bucket name (default: `YOUR_BUCKET`)
 
 **When to run:**
 - After initial SAM deployment
@@ -54,7 +54,7 @@ python3 migrate-books.py
 **Environment Variables:**
 - `AWS_PROFILE`: AWS profile name (default: `default`)
 - `AWS_REGION`: AWS region (default: `us-east-2`)
-- `S3_BUCKET`: S3 bucket name (default: `crackpow`)
+- `S3_BUCKET`: S3 bucket name (default: `YOUR_BUCKET`)
 - `BOOKS_PREFIX`: S3 prefix for books (default: `books/`)
 - `DYNAMODB_TABLE`: DynamoDB table name (default: `Books`)
 
@@ -114,7 +114,7 @@ The migration script doesn't have a dry-run mode, but you can:
 
 1. Check what books would be migrated:
 ```bash
-aws s3 ls s3://crackpow/books/ --recursive | grep ".zip$"
+aws s3 ls s3://YOUR_BUCKET/books/ --recursive | grep ".zip$"
 ```
 
 2. Check current DynamoDB contents:
