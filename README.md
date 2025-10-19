@@ -66,6 +66,7 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 📚 Auto-loading book list on login
 - ⬇️ One-click downloads via presigned URLs
 - 📤 **Web-based book upload** with drag-and-drop support (up to 5GB)
+- 🤖 **Smart metadata lookup** - Auto-populates author and series from Google Books API
 - 📝 **Book editor modal** - Click any book to view/edit details
 - ✏️ **Inline metadata editing** - Update author, series name, and series order
 - 📚 **Series support** - Track book series with name and order fields
@@ -85,7 +86,7 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 📦 DynamoDB for fast metadata access (no S3 listing required)
 - 🔗 Generates secure presigned URLs (1-hour expiration)
 - 📤 **Presigned PUT URL generation** for direct S3 uploads (up to 5GB)
-- 🏷️ **Post-upload metadata endpoint** for author attribution
+- 🏷️ **Post-upload metadata endpoint** for author and series attribution
 - 🗑️ **Safe deletion** from both DynamoDB and S3
 - ✏️ **Metadata updates** (author, read status, name, series name/order)
 - 🛡️ Path traversal protection and input validation
@@ -369,7 +370,7 @@ Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
 ```
 
 ### POST /upload/metadata
-Sets metadata (author) on a book after S3 upload completes.
+Sets metadata (author, series name, series order) on a book after S3 upload completes. The frontend automatically calls Google Books API to fetch metadata when a file is selected, then sends it here.
 
 **Headers:**
 - `Authorization`: Cognito JWT token
@@ -378,7 +379,9 @@ Sets metadata (author) on a book after S3 upload completes.
 ```json
 {
   "bookId": "Book Title",
-  "author": "Author Name"
+  "author": "Author Name",
+  "series_name": "The Great Series",
+  "series_order": 3
 }
 ```
 
@@ -387,9 +390,17 @@ Sets metadata (author) on a book after S3 upload completes.
 {
   "message": "Metadata updated successfully",
   "bookId": "Book Title",
-  "author": "Author Name"
+  "author": "Author Name",
+  "series_name": "The Great Series",
+  "series_order": 3
 }
 ```
+
+**Notes:**
+- All fields except `bookId` are optional
+- `series_order` must be an integer between 1 and 100 if provided
+- Frontend uses Google Books API to auto-populate fields when file is selected
+- Supports multiple regex patterns to extract series info from book titles
 
 ## 🧪 Testing & Code Quality
 
@@ -411,7 +422,7 @@ PYTHONPATH=. pipenv run pytest tests/test_handler.py -v
 PYTHONPATH=. pipenv run pytest --cov=gateway_backend --cov-report=term-missing
 ```
 
-**Coverage:** 47 tests covering all Lambda handlers including edge cases with special characters (apostrophes, quotes, etc.)
+**Coverage:** 58 tests covering all Lambda handlers including edge cases with special characters (apostrophes, quotes, etc.) and comprehensive series field validation
 
 ### End-to-End (E2E) Tests
 
@@ -480,12 +491,12 @@ pipenv run mypy gateway_backend/ tests/
 
 **Test Coverage:**
 - ✅ All 7 Lambda handlers (100% coverage)
-- ✅ 42 tests total (all passing)
+- ✅ 58 tests total (all passing)
 - ✅ Upload functionality (7 tests)
-- ✅ Metadata updates (6 tests)
+- ✅ Metadata updates (11 tests including series fields)
 - ✅ Delete operations (7 tests)
-- ✅ List/Get/Update operations (18 tests)
-- ✅ S3 trigger processing (4 tests)
+- ✅ List/Get/Update operations (24 tests including series)
+- ✅ S3 trigger processing (5 tests)
 
 **Test Categories:**
 - Happy path scenarios
@@ -512,7 +523,17 @@ pipenv run mypy gateway_backend/ tests/
 ### Book Upload
 - Click the **"📤 Upload Book"** button (visible when authenticated)
 - Select a `.zip` file (up to 5GB)
-- Optionally enter author name
+- **Automatic metadata lookup** via Google Books API:
+  - Extracts book title from filename
+  - Fetches author, series name, and series order
+  - Auto-populates fields (only if empty)
+  - Supports multiple series format patterns:
+    - `(Series Book 1)` → extracts "Series" and order 1
+    - `Series, Book 1` → extracts "Series" and order 1
+    - `Book 1 of Series` → extracts "Series" and order 1
+    - `Series #1` → extracts "Series" and order 1
+  - Shows status messages during lookup
+- Optionally edit author, series name, and series order
 - Real-time progress bar with size tracking (MB/GB)
 - Automatic retry logic for metadata updates
 - Books appear in list immediately after upload
@@ -520,8 +541,9 @@ pipenv run mypy gateway_backend/ tests/
 
 ### Book Details Editor
 - Click any book card to open the details modal
-- View complete book information (title, date, size, author)
-- **Edit author** inline with save button
+- View complete book information (title, date, size, author, series)
+- **Edit author and series fields** inline with save button
+- **Series badge display**: Shows "Series Name #N" on book cards
 - Changes sync to backend immediately
 - No page refresh needed
 
@@ -545,9 +567,22 @@ pipenv run mypy gateway_backend/ tests/
 
 ### Author Display
 - Automatically extracted from filename format: "Author - Title.zip"
+- Automatically fetched from Google Books API on upload
 - Displays below book title
 - **Editable** via book details modal
 - Falls back gracefully if no author
+
+### Series Support
+- Track books that are part of a series
+- **Series name** (string, up to 500 chars)
+- **Series order** (integer, 1-100)
+- Auto-populated from Google Books API when uploading
+- Displayed as blue badge on book cards: "Series Name #3"
+- **Intelligent sorting** when grouped by author:
+  - Books in same series sort by series_order
+  - Series books appear before non-series books
+  - Different series sort alphabetically
+  - Fallback to title sort
 
 ### Clean UX
 - Toast notifications (no page jumps)

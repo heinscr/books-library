@@ -805,11 +805,104 @@ function handleFileSelect() {
         fileInfo.textContent = `✓ ${selectedFile.name} (${displaySize})`;
         fileInfo.classList.add('show');
         uploadButton.disabled = false;
+        
+        // Try to auto-populate metadata from Google Books API
+        const bookTitle = selectedFile.name.replace('.zip', '');
+        fetchBookMetadata(bookTitle);
     } else {
         selectedFile = null;
         uploadButton.disabled = true;
         fileInfo.classList.remove('show');
     }
+}
+
+async function fetchBookMetadata(bookTitle) {
+    const statusEl = document.getElementById('apiLookupStatus');
+    const authorInput = document.getElementById('authorName');
+    const seriesNameInput = document.getElementById('uploadSeriesName');
+    const seriesOrderInput = document.getElementById('uploadSeriesOrder');
+    
+    // Show loading status
+    statusEl.textContent = '🔍 Looking up book information...';
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#7f8c8d';
+    
+    try {
+        // Clean up the title for better search results
+        let searchQuery = bookTitle;
+        
+        // If format is "Author - Title", extract just the title for search
+        if (bookTitle.includes(' - ')) {
+            const parts = bookTitle.split(' - ');
+            searchQuery = parts[1] || parts[0];
+        }
+        
+        // Call Google Books API
+        const response = await fetch(
+            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(searchQuery)}&maxResults=1`
+        );
+        
+        if (!response.ok) {
+            throw new Error('API request failed');
+        }
+        
+        const data = await response.json();
+        
+        if (data.items && data.items.length > 0) {
+            const book = data.items[0].volumeInfo;
+            
+            // Auto-fill author if available and field is empty
+            if (book.authors && book.authors.length > 0 && !authorInput.value) {
+                authorInput.value = book.authors[0];
+            }
+            
+            // Check for series information in the title or description
+            const title = book.title || '';
+            const subtitle = book.subtitle || '';
+            const fullTitle = subtitle ? `${title}: ${subtitle}` : title;
+            
+            // Try to extract series info from title
+            // Common patterns: "Series Name, Book 1", "Series Name #1", "(Series Name Book 1)"
+            const seriesPatterns = [
+                /\(([^)]+?)\s+(?:Book|#)\s*(\d+)\)/i,  // (Series Name Book 1) or (Series Name #1)
+                /([^,]+),\s+(?:Book|Volume|Vol\.?)\s*(\d+)/i,  // Series Name, Book 1
+                /:?\s*(?:Book|Volume|Vol\.?)\s*(\d+)\s+of\s+(.+)/i,  // Book 1 of Series Name
+                /([^#]+)\s+#(\d+)/,  // Series Name #1
+            ];
+            
+            let seriesFound = false;
+            for (const pattern of seriesPatterns) {
+                const match = fullTitle.match(pattern);
+                if (match) {
+                    if (!seriesNameInput.value) {
+                        seriesNameInput.value = match[1].trim();
+                    }
+                    if (!seriesOrderInput.value) {
+                        seriesOrderInput.value = match[2];
+                    }
+                    seriesFound = true;
+                    break;
+                }
+            }
+            
+            statusEl.textContent = seriesFound 
+                ? '✓ Found book information and series details' 
+                : '✓ Found book information (no series detected)';
+            statusEl.style.color = '#27ae60';
+        } else {
+            statusEl.textContent = 'ℹ️ No book information found - you can fill in manually';
+            statusEl.style.color = '#7f8c8d';
+        }
+    } catch (error) {
+        console.error('Error fetching book metadata:', error);
+        statusEl.textContent = 'ℹ️ Could not fetch book information - you can fill in manually';
+        statusEl.style.color = '#7f8c8d';
+    }
+    
+    // Hide status after 5 seconds
+    setTimeout(() => {
+        statusEl.style.display = 'none';
+    }, 5000);
 }
 
 async function uploadBook() {
@@ -820,6 +913,10 @@ async function uploadBook() {
     
     const authorInput = document.getElementById('authorName');
     const author = authorInput.value.trim();
+    const seriesNameInput = document.getElementById('uploadSeriesName');
+    const seriesName = seriesNameInput.value.trim();
+    const seriesOrderInput = document.getElementById('uploadSeriesOrder');
+    const seriesOrder = seriesOrderInput.value.trim();
     const uploadButton = document.getElementById('uploadButton');
     const progressDiv = document.getElementById('uploadProgress');
     const progressFill = document.getElementById('progressFill');
@@ -936,13 +1033,19 @@ async function uploadBook() {
         // Wait for S3 trigger to process and create DynamoDB record
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Step 3: Set author metadata if provided
-        if (author) {
+        // Step 3: Set metadata (author, series fields) if provided
+        if (author || seriesName || seriesOrder) {
             try {
                 // Extract book ID from filename (remove .zip extension)
                 const bookId = selectedFile.name.replace('.zip', '');
                 
                 const metadataUrl = API_URL.replace('/books', '') + '/upload/metadata';
+                
+                // Build metadata payload
+                const metadataPayload = { bookId };
+                if (author) metadataPayload.author = author;
+                if (seriesName) metadataPayload.series_name = seriesName;
+                if (seriesOrder) metadataPayload.series_order = parseInt(seriesOrder, 10);
                 
                 // Retry logic in case S3 trigger hasn't finished yet
                 let retries = 3;
@@ -955,14 +1058,11 @@ async function uploadBook() {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${token}`
                         },
-                        body: JSON.stringify({
-                            bookId: bookId,
-                            author: author
-                        })
+                        body: JSON.stringify(metadataPayload)
                     });
                     
                     if (metadataResponse.ok) {
-                        console.log(`Successfully set author metadata for ${bookId}`);
+                        console.log(`Successfully set metadata for ${bookId}`);
                         success = true;
                     } else if (metadataResponse.status === 404) {
                         // Record not found yet, S3 trigger still processing
@@ -972,17 +1072,17 @@ async function uploadBook() {
                             await new Promise(resolve => setTimeout(resolve, 1000));
                         }
                     } else {
-                        console.warn(`Failed to set author metadata: ${metadataResponse.status}`);
+                        console.warn(`Failed to set metadata: ${metadataResponse.status}`);
                         break;
                     }
                 }
                 
                 if (!success) {
-                    console.warn('Failed to set author metadata after retries');
+                    console.warn('Failed to set metadata after retries');
                 }
             } catch (metadataError) {
                 // Don't fail the entire upload if metadata update fails
-                console.warn('Failed to set author metadata:', metadataError);
+                console.warn('Failed to set metadata:', metadataError);
             }
         }
         

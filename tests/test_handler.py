@@ -927,6 +927,133 @@ def test_set_upload_metadata_handler_invalid_json():
     assert "Invalid JSON" in body["message"]
 
 
+def test_set_upload_metadata_handler_with_series_fields():
+    """Test metadata handler successfully sets all fields including series"""
+
+    event = {
+        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
+        "body": json.dumps({
+            "bookId": "Test Book",
+            "author": "Test Author",
+            "series_name": "Test Series",
+            "series_order": 3
+        }),
+    }
+
+    # Mock DynamoDB
+    mock_table = Mock()
+    mock_table.update_item.return_value = {}
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["message"] == "Metadata updated successfully"
+    assert body["author"] == "Test Author"
+    assert body["series_name"] == "Test Series"
+    assert body["series_order"] == 3
+
+    # Verify DynamoDB update call
+    mock_table.update_item.assert_called_once()
+    call_kwargs = mock_table.update_item.call_args.kwargs
+    assert call_kwargs["Key"] == {"id": "Test Book"}
+    assert "author = :author" in call_kwargs["UpdateExpression"]
+    assert "series_name = :series_name" in call_kwargs["UpdateExpression"]
+    assert "series_order = :series_order" in call_kwargs["UpdateExpression"]
+    assert call_kwargs["ExpressionAttributeValues"][":author"] == "Test Author"
+    assert call_kwargs["ExpressionAttributeValues"][":series_name"] == "Test Series"
+    assert call_kwargs["ExpressionAttributeValues"][":series_order"] == 3
+
+
+def test_set_upload_metadata_handler_series_order_out_of_range():
+    """Test metadata handler rejects series_order > 100"""
+
+    event = {
+        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
+        "body": json.dumps({
+            "bookId": "Test Book",
+            "series_order": 101
+        }),
+    }
+
+    resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "series_order must be between 1 and 100" in body["message"]
+
+
+def test_set_upload_metadata_handler_series_order_below_range():
+    """Test metadata handler rejects series_order < 1"""
+
+    event = {
+        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
+        "body": json.dumps({
+            "bookId": "Test Book",
+            "series_order": 0
+        }),
+    }
+
+    resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "series_order must be between 1 and 100" in body["message"]
+
+
+def test_set_upload_metadata_handler_series_order_invalid_type():
+    """Test metadata handler rejects non-integer series_order"""
+
+    event = {
+        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
+        "body": json.dumps({
+            "bookId": "Test Book",
+            "series_order": "not a number"
+        }),
+    }
+
+    resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "series_order must be an integer" in body["message"]
+
+
+def test_set_upload_metadata_handler_partial_fields():
+    """Test metadata handler with only some fields provided"""
+
+    event = {
+        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
+        "body": json.dumps({
+            "bookId": "Test Book",
+            "series_name": "Test Series"
+            # No author or series_order
+        }),
+    }
+
+    # Mock DynamoDB
+    mock_table = Mock()
+    mock_table.update_item.return_value = {}
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["message"] == "Metadata updated successfully"
+    assert body["series_name"] == "Test Series"
+    assert "author" not in body
+    assert "series_order" not in body
+
+    # Verify DynamoDB update call
+    mock_table.update_item.assert_called_once()
+    call_kwargs = mock_table.update_item.call_args.kwargs
+    assert "series_name = :series_name" in call_kwargs["UpdateExpression"]
+    assert "author" not in call_kwargs["UpdateExpression"]
+    assert "series_order" not in call_kwargs["UpdateExpression"]
+
+
 # ============================================================================
 # Delete Book Handler Tests
 # ============================================================================

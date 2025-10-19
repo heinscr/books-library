@@ -73,6 +73,20 @@ pytest tests/test_handler.py -k "test_update_book_handler_invalid" -v
   - ✅ List handler returns series fields
   - ✅ Handles Decimal serialization for series_order
 
+### Upload Metadata Handler Tests
+- ✅ Successfully sets author metadata
+- ✅ Validates missing book ID
+- ✅ Handles book not found
+- ✅ Handles empty author (no update)
+- ✅ Validates author length limit (500 chars)
+- ✅ Validates invalid JSON
+- ✅ **Series Fields Tests**:
+  - ✅ Successfully sets all fields (author, series_name, series_order)
+  - ✅ Validates `series_order` range (1-100)
+  - ✅ Validates `series_order` must be integer
+  - ✅ Handles partial field updates (only some fields provided)
+  - ✅ Returns all updated fields in response
+
 ### S3 Trigger Handler Tests
 - ✅ Ingests new books into DynamoDB
 - ✅ Replaces underscores/dashes in friendly names
@@ -113,6 +127,8 @@ The test suite validates these constraints:
 | `read` | boolean | Required to be boolean type |
 | `author` | string | Max 500 characters |
 | `name` | string | Max 500 characters, cannot be empty |
+| `series_name` | string | Max 500 characters |
+| `series_order` | integer | Between 1 and 100 (inclusive), can be null to clear |
 
 ## Continuous Integration
 
@@ -185,11 +201,11 @@ See `tests/e2e/README.md` for detailed E2E testing documentation.
 
 ## Test Results
 
-Current status: **47 backend tests, all passing** ✅
+Current status: **58 backend tests, all passing** ✅
 
 Backend unit tests:
 ```
-====== 47 passed in 4.45s ======
+====== 58 passed in 4.40s ======
 ```
 
 E2E tests: **9 smoke tests, 3 skipped (auth required)**

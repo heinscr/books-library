@@ -604,12 +604,14 @@ def upload_handler(event, context):
 
 def set_upload_metadata_handler(event, context):
     """
-    Lambda handler to set metadata (author, etc.) after S3 upload completes
+    Lambda handler to set metadata (author, series_name, series_order) after S3 upload completes
     This is called by the frontend after the S3 upload finishes successfully
 
     Expects JSON body with:
     - bookId: The ID of the book (filename without .zip)
     - author: (optional) Author name to set
+    - series_name: (optional) Series name to set
+    - series_order: (optional) Series order to set (1-100)
 
     Returns success/failure status
     """
@@ -634,37 +636,80 @@ def set_upload_metadata_handler(event, context):
             logger.warning("Missing bookId in request")
             return _response(400, {"error": "Bad Request", "message": "bookId is required"})
 
-        # Validate optional author field
+        # Validate optional fields
         error = _validate_string_field(body, "author", max_length=500)
         if error:
             return error
 
-        author = body.get("author", "").strip()
+        error = _validate_string_field(body, "series_name", max_length=500)
+        if error:
+            return error
 
-        if not author:
+        # Validate series_order if provided
+        if "series_order" in body:
+            series_order = body["series_order"]
+            if series_order is not None:
+                try:
+                    series_order_int = int(series_order)
+                    if series_order_int < 1 or series_order_int > 100:
+                        return _response(
+                            400,
+                            {"error": "Bad Request", "message": "series_order must be between 1 and 100"}
+                        )
+                except (ValueError, TypeError):
+                    return _response(
+                        400,
+                        {"error": "Bad Request", "message": "series_order must be an integer"}
+                    )
+
+        author = body.get("author", "").strip()
+        series_name = body.get("series_name", "").strip()
+        series_order = body.get("series_order")
+
+        # Build update expression dynamically
+        update_expr_parts = []
+        expr_values = {}
+
+        if author:
+            update_expr_parts.append("author = :author")
+            expr_values[":author"] = author
+
+        if series_name:
+            update_expr_parts.append("series_name = :series_name")
+            expr_values[":series_name"] = series_name
+
+        if series_order is not None:
+            update_expr_parts.append("series_order = :series_order")
+            expr_values[":series_order"] = int(series_order)
+
+        if not update_expr_parts:
             # Nothing to update
             return _response(200, {"message": "No metadata to update"})
 
-        logger.info(f"Setting author '{author}' for book: {book_id}")
+        logger.info(f"Setting metadata for book: {book_id}")
 
-        # Update DynamoDB item with author
-        update_expression = "SET author = :author"
-        expression_values = {":author": author}
+        # Update DynamoDB item
+        update_expression = "SET " + ", ".join(update_expr_parts)
 
         try:
             books_table.update_item(
                 Key={"id": book_id},
                 UpdateExpression=update_expression,
-                ExpressionAttributeValues=expression_values,
+                ExpressionAttributeValues=expr_values,
                 ConditionExpression="attribute_exists(id)",
             )
 
-            logger.info(f"Successfully updated author for book: {book_id}")
+            logger.info(f"Successfully updated metadata for book: {book_id}")
 
-            return _response(
-                200,
-                {"message": "Metadata updated successfully", "bookId": book_id, "author": author},
-            )
+            response_data = {"message": "Metadata updated successfully", "bookId": book_id}
+            if author:
+                response_data["author"] = author
+            if series_name:
+                response_data["series_name"] = series_name
+            if series_order is not None:
+                response_data["series_order"] = int(series_order)
+
+            return _response(200, response_data)
 
         except ClientError as e:
             if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
