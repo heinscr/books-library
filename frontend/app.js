@@ -371,7 +371,7 @@ function renderBooks(books) {
         let bookInfo = `
             <div class="book-header">
                 <div class="book-name">${escapeHtml(book.name)}</div>
-                <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="${escapeHtml(book.id)}" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
                     ${isRead ? '✓' : '○'}
                 </div>
             </div>
@@ -397,6 +397,14 @@ function renderBooks(books) {
         `;
         
         bookCard.innerHTML = bookInfo;
+
+        // Ensure the data-book-id attribute stores the raw book id (not HTML-escaped)
+        // This avoids HTML entities like &#39; ending up in attributes when using innerHTML
+        const readToggleEl = bookCard.querySelector('.read-toggle');
+        if (readToggleEl) {
+            // Use setAttribute with the raw value so getAttribute returns the original id
+            readToggleEl.setAttribute('data-book-id', book.id);
+        }
         
         // Add click handler for the card - opens details modal, unless clicking special elements
         bookCard.addEventListener('click', (e) => {
