@@ -403,7 +403,31 @@ function renderBooksGroupedByAuthor(books) {
         const booksGrid = document.createElement('div');
         booksGrid.className = 'books-grid';
         
-        booksByAuthor[author].forEach(book => {
+        // Sort books within author by series order, then by title
+        const sortedBooks = booksByAuthor[author].sort((a, b) => {
+            // If both books have series info and same series name, sort by series_order
+            if (a.series_name && b.series_name && a.series_name === b.series_name) {
+                const orderA = a.series_order || 0;
+                const orderB = b.series_order || 0;
+                if (orderA !== orderB) {
+                    return orderA - orderB;
+                }
+            }
+            
+            // If only one has series info, put series books first
+            if (a.series_name && !b.series_name) return -1;
+            if (!a.series_name && b.series_name) return 1;
+            
+            // Different series or no series - sort by series name, then title
+            if (a.series_name && b.series_name && a.series_name !== b.series_name) {
+                return a.series_name.localeCompare(b.series_name);
+            }
+            
+            // Fallback to sorting by book title
+            return (a.name || '').localeCompare(b.name || '');
+        });
+        
+        sortedBooks.forEach(book => {
             const bookCard = createBookCard(book);
             booksGrid.appendChild(bookCard);
         });
