@@ -404,6 +404,18 @@ function renderBooks(books) {
         if (readToggleEl) {
             // Use setAttribute with the raw value so getAttribute returns the original id
             readToggleEl.setAttribute('data-book-id', book.id);
+            
+            // Debug: verify the attribute was set correctly
+            const verifyId = readToggleEl.getAttribute('data-book-id');
+            if (verifyId !== book.id) {
+                console.error('Data attribute mismatch!', {
+                    expected: book.id,
+                    actual: verifyId,
+                    bookName: book.name
+                });
+            }
+        } else {
+            console.error('Could not find read-toggle element for book:', book.name);
         }
         
         // Add click handler for the card - opens details modal, unless clicking special elements
@@ -412,6 +424,11 @@ function renderBooks(books) {
             const readToggle = e.target.closest('.read-toggle');
             if (readToggle) {
                 const bookId = readToggle.getAttribute('data-book-id');
+                if (!bookId) {
+                    console.error('Read toggle clicked but data-book-id is empty or null');
+                    showAlert('❌ Error: Book ID not found', 'error');
+                    return;
+                }
                 toggleReadStatus(bookId, e);
                 return;
             }
@@ -471,6 +488,15 @@ function formatBytes(bytes) {
 // Read status management (synced with backend)
 async function toggleReadStatus(bookId, event) {
     event.stopPropagation(); // Prevent download trigger
+    
+    // Validate bookId
+    if (!bookId || bookId.trim() === '') {
+        console.error('toggleReadStatus called with invalid bookId:', bookId);
+        showAlert('❌ Error: Invalid book ID', 'error');
+        return;
+    }
+    
+    console.log('Toggling read status for book:', bookId);
     
     const token = localStorage.getItem('idToken');
     if (!token) {
