@@ -47,10 +47,16 @@
             <button class="upload-btn" id="uploadBtn" onclick="showUploadModal()">
                 📤 Upload Book
             </button>
-            <label class="filter-toggle">
-                <input type="checkbox" id="hideReadBooks" onchange="applyFilters()">
-                <span>Hide read books</span>
-            </label>
+            <div class="filter-controls">
+                <label class="filter-toggle">
+                    <input type="checkbox" id="hideReadBooks" onchange="applyFilters()">
+                    <span>Hide read books</span>
+                </label>
+                <label class="filter-toggle">
+                    <input type="checkbox" id="groupByAuthor" onchange="applyFilters()">
+                    <span>Group by author</span>
+                </label>
+            </div>
         </div>
         
         <span id="loading" class="loading" style="display: none;">

@@ -74,7 +74,7 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 🎨 Modern card-based grid layout with hover effects
 - 🔔 Toast notifications (no layout shift)
 - 📈 Real-time upload progress with MB/GB tracking
-- 🔍 Filter controls (hide read books)
+- 🔍 Filter controls (hide read books, group by author)
 - 💾 Persistent state across sessions
 
 ### Backend
@@ -553,7 +553,7 @@ pipenv run mypy gateway_backend/ tests/
 - Click-anywhere-to-edit book cards (except download/read icons)
 - Responsive grid layout
 - Auto token refresh (no login interruptions)
-- Filter controls (hide read books)
+- Filter controls (hide read books, group by author)
 
 ## 📝 Configuration
 

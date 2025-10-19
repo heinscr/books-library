@@ -446,9 +446,15 @@ body {
 .controls-row {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 30px;
     gap: 20px;
+}
+
+.filter-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .upload-btn {
@@ -743,3 +749,37 @@ body {
     color: #95a5a6;
     font-style: italic;
 }
+
+/* Author grouping styles */
+.author-section {
+    margin-bottom: 40px;
+}
+
+.author-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-bottom: 2px solid #d4a574;
+    margin-bottom: 20px;
+}
+
+.author-header h3 {
+    color: #2c3e50;
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.author-book-count {
+    color: #7f8c8d;
+    font-size: 14px;
+    font-weight: 500;
+    background: rgba(212, 165, 116, 0.1);
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+

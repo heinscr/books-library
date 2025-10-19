@@ -146,6 +146,9 @@ page.wait_for_timeout(500)  # Wait for animation/API call
 - Book cards have required elements
 - Read toggle buttons exist and have proper attributes
 - Filter checkbox exists and toggles
+- Group by author checkbox exists and toggles
+- Group by author creates author sections
+- Author sections show book counts
 - Special characters (apostrophes, quotes) display correctly
 
 ### 🚧 Skipped (Requires Authentication)

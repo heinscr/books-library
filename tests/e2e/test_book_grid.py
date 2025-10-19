@@ -161,6 +161,66 @@ class TestFilterFunctionality:
 
 
 @pytest.mark.e2e
+class TestGroupByAuthor:
+    """Tests for group by author functionality."""
+
+    def test_group_by_author_checkbox_exists(self, page, base_url):
+        """Test that the group by author checkbox exists."""
+        page.goto(base_url)
+
+        group_checkbox = page.locator("#groupByAuthor")
+        assert group_checkbox.is_visible(), "Group by author checkbox not found"
+
+    def test_group_by_author_checkbox_toggles(self, page, base_url):
+        """Test that the group by author checkbox can be toggled."""
+        page.goto(base_url)
+
+        group_checkbox = page.locator("#groupByAuthor")
+
+        # Toggle on
+        group_checkbox.check()
+        assert group_checkbox.is_checked()
+
+        # Toggle off
+        group_checkbox.uncheck()
+        assert not group_checkbox.is_checked()
+
+    def test_group_by_author_shows_author_sections(self, page, base_url):
+        """Test that enabling group by author creates author sections."""
+        page.goto(base_url)
+        page.wait_for_selector(".book-card", timeout=10000)
+
+        # Enable grouping
+        page.locator("#groupByAuthor").check()
+        page.wait_for_timeout(500)  # Wait for re-render
+
+        # Check that author sections are created
+        author_sections = page.locator(".author-section")
+        assert author_sections.count() > 0, "No author sections found when grouping enabled"
+
+        # Check that author headers exist
+        author_headers = page.locator(".author-header")
+        assert author_headers.count() > 0, "No author headers found"
+
+    def test_group_by_author_shows_book_counts(self, page, base_url):
+        """Test that author sections show book counts."""
+        page.goto(base_url)
+        page.wait_for_selector(".book-card", timeout=10000)
+
+        # Enable grouping
+        page.locator("#groupByAuthor").check()
+        page.wait_for_timeout(500)
+
+        # Check that book counts are displayed
+        book_counts = page.locator(".author-book-count")
+        assert book_counts.count() > 0, "No book count badges found"
+
+        # Verify the count text makes sense
+        first_count = book_counts.first.text_content()
+        assert "book" in first_count.lower(), "Book count text doesn't contain 'book'"
+
+
+@pytest.mark.e2e
 class TestFilterStatePreservation:
     """Tests for filter state preservation after book operations.
 

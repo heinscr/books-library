@@ -327,7 +327,7 @@ async function fetchBooks() {
     }
 }
 
-function renderBooks(books) {
+function renderBooks(books, groupByAuthor = false) {
     const booksContainer = document.getElementById('booksContainer');
     booksContainer.innerHTML = '';
     
@@ -342,117 +342,180 @@ function renderBooks(books) {
         return;
     }
     
+    if (groupByAuthor) {
+        renderBooksGroupedByAuthor(books);
+    } else {
+        renderBooksAsGrid(books);
+    }
+    
+    showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+}
+
+function renderBooksAsGrid(books) {
+    const booksContainer = document.getElementById('booksContainer');
+    
     // Display books in grid
     const booksGrid = document.createElement('div');
     booksGrid.className = 'books-grid';
     
     books.forEach(book => {
-        const bookCard = document.createElement('div');
-        bookCard.className = 'book-card';
-        
-        // Check if book is marked as read (from backend)
-        const isRead = book.read || false;
-        if (isRead) {
-            bookCard.classList.add('read');
-        }
-        
-        // Format date
-        const date = new Date(book.created);
-        const formattedDate = date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-        
-        // Format file size
-        const sizeInMB = book.size ? (book.size / (1024 * 1024)).toFixed(2) : '?';
-        
-        // Build book info HTML
-        let bookInfo = `
-            <div class="book-header">
-                <div class="book-name">${escapeHtml(book.name)}</div>
-                <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
-                    ${isRead ? '✓' : '○'}
-                </div>
-            </div>
-        `;
-        
-        // Add author if available
-        if (book.author) {
-            bookInfo += `
-                <div class="book-author">
-                    ✍️ ${escapeHtml(book.author)}
-                </div>
-            `;
-        }
-        
-        bookInfo += `
-            <div class="book-meta">
-                <div class="book-size">📦 ${sizeInMB} MB</div>
-                <div class="book-date">📅 ${formattedDate}</div>
-            </div>
-            <div class="book-download">
-                <span class="download-icon">⬇️</span>
-            </div>
-        `;
-        
-        bookCard.innerHTML = bookInfo;
-
-        // Ensure the data-book-id attribute stores the raw book id (not HTML-escaped)
-        // This avoids HTML entities like &#39; ending up in attributes when using innerHTML
-        const readToggleEl = bookCard.querySelector('.read-toggle');
-        if (readToggleEl) {
-            // Use setAttribute with the raw value so getAttribute returns the original id
-            readToggleEl.setAttribute('data-book-id', book.id);
-            
-            // Debug: verify the attribute was set correctly
-            const verifyId = readToggleEl.getAttribute('data-book-id');
-            if (verifyId !== book.id) {
-                console.error('Data attribute mismatch!', {
-                    expected: book.id,
-                    actual: verifyId,
-                    bookName: book.name
-                });
-            }
-        } else {
-            console.error('Could not find read-toggle element for book:', book.name);
-        }
-        
-        // Add click handler for the card - opens details modal, unless clicking special elements
-        bookCard.addEventListener('click', (e) => {
-            // Handle read toggle click
-            const readToggle = e.target.closest('.read-toggle');
-            if (readToggle) {
-                const bookId = readToggle.getAttribute('data-book-id');
-                if (!bookId) {
-                    console.error('Read toggle clicked but data-book-id is empty or null');
-                    showAlert('❌ Error: Book ID not found', 'error');
-                    return;
-                }
-                toggleReadStatus(bookId, e);
-                return;
-            }
-            
-            // Don't open modal if clicking the download icon
-            if (e.target.closest('.book-download')) {
-                downloadBook(book.id);
-                return;
-            }
-            
-            // Open details modal for any other click
-            showBookDetailsModal(book);
-        });
-        
+        const bookCard = createBookCard(book);
         booksGrid.appendChild(bookCard);
     });
     
     booksContainer.appendChild(booksGrid);
-    showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+}
+
+function renderBooksGroupedByAuthor(books) {
+    const booksContainer = document.getElementById('booksContainer');
+    
+    // Group books by author
+    const booksByAuthor = {};
+    const unknownAuthor = 'Unknown Author';
+    
+    books.forEach(book => {
+        const author = book.author || unknownAuthor;
+        if (!booksByAuthor[author]) {
+            booksByAuthor[author] = [];
+        }
+        booksByAuthor[author].push(book);
+    });
+    
+    // Sort authors alphabetically, but put "Unknown Author" last
+    const sortedAuthors = Object.keys(booksByAuthor).sort((a, b) => {
+        if (a === unknownAuthor) return 1;
+        if (b === unknownAuthor) return -1;
+        return a.localeCompare(b);
+    });
+    
+    // Create grouped display
+    sortedAuthors.forEach(author => {
+        const authorSection = document.createElement('div');
+        authorSection.className = 'author-section';
+        
+        const authorHeader = document.createElement('div');
+        authorHeader.className = 'author-header';
+        authorHeader.innerHTML = `
+            <h3>✍️ ${escapeHtml(author)}</h3>
+            <span class="author-book-count">${booksByAuthor[author].length} book${booksByAuthor[author].length !== 1 ? 's' : ''}</span>
+        `;
+        
+        const booksGrid = document.createElement('div');
+        booksGrid.className = 'books-grid';
+        
+        booksByAuthor[author].forEach(book => {
+            const bookCard = createBookCard(book);
+            booksGrid.appendChild(bookCard);
+        });
+        
+        authorSection.appendChild(authorHeader);
+        authorSection.appendChild(booksGrid);
+        booksContainer.appendChild(authorSection);
+    });
+}
+
+function createBookCard(book) {
+    const bookCard = document.createElement('div');
+    bookCard.className = 'book-card';
+    
+    // Check if book is marked as read (from backend)
+    const isRead = book.read || false;
+    if (isRead) {
+        bookCard.classList.add('read');
+    }
+    
+    // Format date
+    const date = new Date(book.created);
+    const formattedDate = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    
+    // Format file size
+    const sizeInMB = book.size ? (book.size / (1024 * 1024)).toFixed(2) : '?';
+    
+    // Build book info HTML
+    let bookInfo = `
+        <div class="book-header">
+            <div class="book-name">${escapeHtml(book.name)}</div>
+            <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                ${isRead ? '✓' : '○'}
+            </div>
+        </div>
+    `;
+    
+    // Add author if available
+    if (book.author) {
+        bookInfo += `
+            <div class="book-author">
+                ✍️ ${escapeHtml(book.author)}
+            </div>
+        `;
+    }
+    
+    bookInfo += `
+        <div class="book-meta">
+            <div class="book-size">📦 ${sizeInMB} MB</div>
+            <div class="book-date">📅 ${formattedDate}</div>
+        </div>
+        <div class="book-download">
+            <span class="download-icon">⬇️</span>
+        </div>
+    `;
+    
+    bookCard.innerHTML = bookInfo;
+
+    // Ensure the data-book-id attribute stores the raw book id (not HTML-escaped)
+    const readToggleEl = bookCard.querySelector('.read-toggle');
+    if (readToggleEl) {
+        readToggleEl.setAttribute('data-book-id', book.id);
+        
+        // Debug: verify the attribute was set correctly
+        const verifyId = readToggleEl.getAttribute('data-book-id');
+        if (verifyId !== book.id) {
+            console.error('Data attribute mismatch!', {
+                expected: book.id,
+                actual: verifyId,
+                bookName: book.name
+            });
+        }
+    } else {
+        console.error('Could not find read-toggle element for book:', book.name);
+    }
+    
+    // Add click handler for the card
+    bookCard.addEventListener('click', (e) => {
+        // Handle read toggle click
+        const readToggle = e.target.closest('.read-toggle');
+        if (readToggle) {
+            const bookId = readToggle.getAttribute('data-book-id');
+            if (!bookId) {
+                console.error('Read toggle clicked but data-book-id is empty or null');
+                showAlert('❌ Error: Book ID not found', 'error');
+                return;
+            }
+            toggleReadStatus(bookId, e);
+            return;
+        }
+        
+        // Don't open modal if clicking the download icon
+        if (e.target.closest('.book-download')) {
+            downloadBook(book.id);
+            return;
+        }
+        
+        // Open details modal for any other click
+        showBookDetailsModal(book);
+    });
+    
+    return bookCard;
 }
 
 // Apply filters based on filter controls
 function applyFilters() {
     const hideRead = document.getElementById('hideReadBooks').checked;
+    const groupByAuthor = document.getElementById('groupByAuthor').checked;
     
     let filteredBooks = allBooks;
     
@@ -462,7 +525,7 @@ function applyFilters() {
     }
     
     // Re-render with filtered books
-    renderBooks(filteredBooks);
+    renderBooks(filteredBooks, groupByAuthor);
     
     // Update success message
     if (hideRead && filteredBooks.length < allBooks.length) {
