@@ -38,6 +38,7 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
                 │  DynamoDB Table      │◄──┤              │
                 │  Books (metadata)    │◄──┼──────────────┤
                 │  ├─ id, name, author │   │              │
+                │  ├─ series_name/order│   │              │
                 │  ├─ size, created    │   │        ┌─────▼────────────────┐
                 │  └─ read status      │   │        │SetMetadataFunction   │
                 └──────────────────────┘   │        │(Set author on upload)│
@@ -66,7 +67,8 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - ⬇️ One-click downloads via presigned URLs
 - 📤 **Web-based book upload** with drag-and-drop support (up to 5GB)
 - 📝 **Book editor modal** - Click any book to view/edit details
-- ✏️ **Inline author editing** - Update author names on the fly
+- ✏️ **Inline metadata editing** - Update author, series name, and series order
+- 📚 **Series support** - Track book series with name and order fields
 - 🗑️ **Delete books** - Remove from both S3 and DynamoDB with confirmation
 - ✅ Read/Unread status tracking (synced with backend)
 - 📊 File size display (MB/GB) with smart formatting
@@ -85,7 +87,7 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 📤 **Presigned PUT URL generation** for direct S3 uploads (up to 5GB)
 - 🏷️ **Post-upload metadata endpoint** for author attribution
 - 🗑️ **Safe deletion** from both DynamoDB and S3
-- ✏️ **Metadata updates** (author, read status, name)
+- ✏️ **Metadata updates** (author, read status, name, series name/order)
 - 🛡️ Path traversal protection and input validation
 - 📊 Sorted by date (newest first)
 - 🌐 CORS enabled for cross-origin requests

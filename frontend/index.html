@@ -125,6 +125,16 @@
                     <input type="text" id="editAuthor" placeholder="Enter author name" maxlength="500">
                     <div class="field-hint">You can edit the author name and save changes</div>
                 </div>
+                <div class="form-group">
+                    <label for="editSeriesName">Series Name:</label>
+                    <input type="text" id="editSeriesName" placeholder="Enter series name (optional)" maxlength="500">
+                    <div class="field-hint">If this book is part of a series, enter the series name</div>
+                </div>
+                <div class="form-group">
+                    <label for="editSeriesOrder">Series Order:</label>
+                    <input type="text" id="editSeriesOrder" placeholder="Enter book number in series (optional)" maxlength="3">
+                    <div class="field-hint">The order of this book within the series (1-100)</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn-danger" id="deleteBookButton" onclick="deleteBook()">🗑️ Delete Book</button>

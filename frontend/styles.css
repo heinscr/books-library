@@ -325,6 +325,17 @@ body {
     margin-top: -5px;
 }
 
+.book-series {
+    font-size: 13px;
+    color: #5a7a8f;
+    font-weight: 500;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    background: rgba(90, 122, 143, 0.1);
+    border-radius: 4px;
+    display: inline-block;
+}
+
 .read-toggle {
     width: 32px;
     height: 32px;

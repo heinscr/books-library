@@ -63,6 +63,15 @@ pytest tests/test_handler.py -k "test_update_book_handler_invalid" -v
   - ✅ Validates `name` field must be string
   - ✅ Validates `name` cannot be empty
   - ✅ Validates `name` length limit (500 chars)
+  - ✅ Validates `series_name` field must be string
+  - ✅ Validates `series_name` length limit (500 chars)
+  - ✅ Validates `series_order` must be integer
+  - ✅ Validates `series_order` range (1-100)
+  - ✅ Supports clearing `series_order` with null
+- ✅ **Series Fields Tests**:
+  - ✅ Successfully updates series_name and series_order
+  - ✅ List handler returns series fields
+  - ✅ Handles Decimal serialization for series_order
 
 ### S3 Trigger Handler Tests
 - ✅ Ingests new books into DynamoDB

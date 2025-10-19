@@ -454,6 +454,18 @@ function createBookCard(book) {
         `;
     }
     
+    // Add series info if available
+    if (book.series_name) {
+        const seriesText = book.series_order 
+            ? `${escapeHtml(book.series_name)} #${book.series_order}`
+            : escapeHtml(book.series_name);
+        bookInfo += `
+            <div class="book-series">
+                📚 ${seriesText}
+            </div>
+        `;
+    }
+    
     bookInfo += `
         <div class="book-meta">
             <div class="book-size">📦 ${sizeInMB} MB</div>
@@ -1023,6 +1035,10 @@ function showBookDetailsModal(book) {
     // Set author field
     document.getElementById('editAuthor').value = book.author || '';
     
+    // Set series fields
+    document.getElementById('editSeriesName').value = book.series_name || '';
+    document.getElementById('editSeriesOrder').value = book.series_order || '';
+    
     // Show modal
     document.getElementById('bookDetailsModal').style.display = 'flex';
 }
@@ -1045,11 +1061,30 @@ async function saveBookDetails() {
     }
     
     const newAuthor = document.getElementById('editAuthor').value.trim();
+    const newSeriesName = document.getElementById('editSeriesName').value.trim();
+    const newSeriesOrder = document.getElementById('editSeriesOrder').value.trim();
     const saveButton = document.getElementById('saveDetailsButton');
     
-    // Check if author actually changed
+    // Validate series order if provided
+    if (newSeriesOrder && !/^\d+$/.test(newSeriesOrder)) {
+        showAlert('❌ Series order must be a number', 'error');
+        return;
+    }
+    
+    if (newSeriesOrder) {
+        const orderNum = parseInt(newSeriesOrder, 10);
+        if (orderNum < 1 || orderNum > 100) {
+            showAlert('❌ Series order must be between 1 and 100', 'error');
+            return;
+        }
+    }
+    
+    // Check if any field actually changed
     const oldAuthor = currentEditingBook.author || '';
-    if (newAuthor === oldAuthor) {
+    const oldSeriesName = currentEditingBook.series_name || '';
+    const oldSeriesOrder = currentEditingBook.series_order ? String(currentEditingBook.series_order) : '';
+    
+    if (newAuthor === oldAuthor && newSeriesName === oldSeriesName && newSeriesOrder === oldSeriesOrder) {
         showAlert('ℹ️ No changes to save', 'success');
         closeBookDetailsModal();
         return;
@@ -1060,10 +1095,21 @@ async function saveBookDetails() {
         saveButton.disabled = true;
         saveButton.textContent = 'Saving...';
         
-        // Prepare update body
-        const updateBody = {
-            author: newAuthor  // Send empty string if cleared
-        };
+        // Prepare update body with only changed fields
+        const updateBody = {};
+        
+        if (newAuthor !== oldAuthor) {
+            updateBody.author = newAuthor;  // Send empty string if cleared
+        }
+        
+        if (newSeriesName !== oldSeriesName) {
+            updateBody.series_name = newSeriesName;  // Send empty string if cleared
+        }
+        
+        if (newSeriesOrder !== oldSeriesOrder) {
+            // Convert to integer or null
+            updateBody.series_order = newSeriesOrder ? parseInt(newSeriesOrder, 10) : null;
+        }
         
         // Call PATCH /books/{id}
         const bookId = encodeURIComponent(currentEditingBook.id);
@@ -1095,13 +1141,18 @@ async function saveBookDetails() {
         // Update the book in the local allBooks array
         const bookIndex = allBooks.findIndex(b => b.id === currentEditingBook.id);
         if (bookIndex !== -1) {
-            allBooks[bookIndex] = { ...allBooks[bookIndex], author: updatedBook.author };
+            allBooks[bookIndex] = { 
+                ...allBooks[bookIndex], 
+                author: updatedBook.author,
+                series_name: updatedBook.series_name,
+                series_order: updatedBook.series_order
+            };
         }
         
         // Re-render with current filter state preserved
         applyFilters();
         
-        showAlert('✅ Author updated successfully', 'success');
+        showAlert('✅ Book details updated successfully', 'success');
         closeBookDetailsModal();
         
     } catch (error) {

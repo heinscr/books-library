@@ -395,6 +395,153 @@ def test_update_book_handler_name_too_long():
     assert "exceeds maximum length" in body["message"]
 
 
+def test_update_book_handler_with_series_fields():
+    """Test updating book with series_name and series_order"""
+
+    event = {
+        "pathParameters": {"id": "book-a.zip"},
+        "body": json.dumps({
+            "series_name": "The Foundation Series",
+            "series_order": 1
+        }),
+    }
+
+    # Mock DynamoDB update response
+    mock_update_response = {
+        "Attributes": {
+            "id": "book-a.zip",
+            "name": "Foundation",
+            "read": False,
+            "author": "Isaac Asimov",
+            "series_name": "The Foundation Series",
+            "series_order": Decimal("1"),
+            "created": "2023-06-15T10:30:00Z",
+            "s3_url": "s3://test-bucket/books/Foundation.zip",
+        }
+    }
+
+    mock_table = Mock()
+    mock_table.update_item.return_value = mock_update_response
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["series_name"] == "The Foundation Series"
+    assert body["series_order"] == 1
+
+
+def test_update_book_handler_series_order_out_of_range():
+    """Test update_book_handler with series_order outside valid range"""
+
+    event = {
+        "pathParameters": {"id": "book-a.zip"},
+        "body": json.dumps({"series_order": 101}),  # Exceeds max of 100
+    }
+
+    resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "must be between 1 and 100" in body["message"]
+
+
+def test_update_book_handler_series_order_below_range():
+    """Test update_book_handler with series_order below minimum"""
+
+    event = {
+        "pathParameters": {"id": "book-a.zip"},
+        "body": json.dumps({"series_order": 0}),
+    }
+
+    resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "must be between 1 and 100" in body["message"]
+
+
+def test_update_book_handler_series_order_invalid_type():
+    """Test update_book_handler with non-integer series_order"""
+
+    event = {
+        "pathParameters": {"id": "book-a.zip"},
+        "body": json.dumps({"series_order": "not a number"}),
+    }
+
+    resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "must be an integer" in body["message"]
+
+
+def test_update_book_handler_clear_series_order():
+    """Test clearing series_order by setting it to null"""
+
+    event = {
+        "pathParameters": {"id": "book-a.zip"},
+        "body": json.dumps({"series_order": None}),
+    }
+
+    # Mock DynamoDB update response without series_order
+    mock_update_response = {
+        "Attributes": {
+            "id": "book-a.zip",
+            "name": "Foundation",
+            "read": False,
+            "author": "Isaac Asimov",
+            "series_name": "The Foundation Series",
+            "created": "2023-06-15T10:30:00Z",
+            "s3_url": "s3://test-bucket/books/Foundation.zip",
+        }
+    }
+
+    mock_table = Mock()
+    mock_table.update_item.return_value = mock_update_response
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert "series_order" not in body or body["series_order"] is None
+
+
+def test_list_handler_returns_books_with_series():
+    """Test that list handler returns books with series fields"""
+
+    # Mock DynamoDB response with series fields
+    mock_dynamodb_response = {
+        "Items": [
+            {
+                "id": "foundation.zip",
+                "name": "Foundation",
+                "size": Decimal("1024000"),
+                "created": "2023-06-15T10:30:00Z",
+                "read": False,
+                "s3_url": "s3://test-bucket/books/foundation.zip",
+                "author": "Isaac Asimov",
+                "series_name": "Foundation",
+                "series_order": Decimal("1"),
+            },
+        ]
+    }
+
+    mock_table = Mock()
+    mock_table.scan.return_value = mock_dynamodb_response
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.list_handler({}, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert len(body) == 1
+    assert body[0]["series_name"] == "Foundation"
+    assert body[0]["series_order"] == 1
+
+
 def test_s3_trigger_handler_success():
     """Test S3 trigger handler ingests book into DynamoDB"""
 

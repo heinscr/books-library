@@ -186,6 +186,10 @@ def list_handler(event, context):
             if "size" in item:
                 # Convert Decimal to int
                 book["size"] = int(item["size"]) if item["size"] else None
+            if "series_name" in item:
+                book["series_name"] = item["series_name"]
+            if "series_order" in item:
+                book["series_order"] = int(item["series_order"]) if item["series_order"] else None
             books.append(book)
 
         # Sort by created date (most recent first)
@@ -260,6 +264,8 @@ def get_book_handler(event, context):
                 "created": book_item.get("created"),
                 "read": book_item.get("read", False),
                 "author": book_item.get("author"),
+                "series_name": book_item.get("series_name"),
+                "series_order": int(book_item["series_order"]) if book_item.get("series_order") else None,
                 "size": int(book_item["size"]) if book_item.get("size") else None,
                 "downloadUrl": presigned_url,
                 "expiresIn": 3600,
@@ -275,7 +281,7 @@ def update_book_handler(event, context):
     """
     Lambda handler to update book metadata in DynamoDB
     Expects book ID in path parameter 'id'
-    Accepts JSON body with fields to update (e.g., read, author, name)
+    Accepts JSON body with fields to update (e.g., read, author, name, series_name, series_order)
     """
     logger.info("update_book_handler invoked")
 
@@ -305,14 +311,37 @@ def update_book_handler(event, context):
         if error:
             return error
 
+        error = _validate_string_field(body, "series_name", max_length=500)
+        if error:
+            return error
+
         # Additional validation for name (cannot be empty if provided)
         if "name" in body and not body["name"].strip():
             return _response(
                 400, {"error": "Bad Request", "message": 'Field "name" cannot be empty'}
             )
 
+        # Validate series_order if provided
+        if "series_order" in body:
+            series_order = body["series_order"]
+            # Allow None/null to clear the field
+            if series_order is not None:
+                try:
+                    series_order_int = int(series_order)
+                    if series_order_int < 1 or series_order_int > 100:
+                        return _response(
+                            400,
+                            {"error": "Bad Request", "message": "series_order must be between 1 and 100"}
+                        )
+                except (ValueError, TypeError):
+                    return _response(
+                        400,
+                        {"error": "Bad Request", "message": "series_order must be an integer"}
+                    )
+
         # Build update expression dynamically
         update_expr_parts = []
+        remove_expr_parts = []
         expr_attr_values = {}
         expr_attr_names = {}
 
@@ -332,10 +361,33 @@ def update_book_handler(event, context):
             expr_attr_values[":name"] = str(body["name"])
             expr_attr_names["#name"] = "name"
 
-        if not update_expr_parts:
+        if "series_name" in body:
+            update_expr_parts.append("#series_name = :series_name")
+            expr_attr_values[":series_name"] = str(body["series_name"])
+            expr_attr_names["#series_name"] = "series_name"
+
+        if "series_order" in body:
+            series_order = body["series_order"]
+            if series_order is None or series_order == "":
+                # Remove the attribute if null/empty
+                remove_expr_parts.append("#series_order")
+                expr_attr_names["#series_order"] = "series_order"
+            else:
+                update_expr_parts.append("#series_order = :series_order")
+                expr_attr_values[":series_order"] = int(series_order)
+                expr_attr_names["#series_order"] = "series_order"
+
+        if not update_expr_parts and not remove_expr_parts:
             return _response(400, {"error": "Bad Request", "message": "No valid fields to update"})
 
-        update_expression = "SET " + ", ".join(update_expr_parts)
+        # Build the full update expression
+        update_expression_parts = []
+        if update_expr_parts:
+            update_expression_parts.append("SET " + ", ".join(update_expr_parts))
+        if remove_expr_parts:
+            update_expression_parts.append("REMOVE " + ", ".join(remove_expr_parts))
+        
+        update_expression = " ".join(update_expression_parts)
 
         # Update the item in DynamoDB
         try:
@@ -362,6 +414,8 @@ def update_book_handler(event, context):
                     "created": updated_item.get("created"),
                     "read": updated_item.get("read", False),
                     "author": updated_item.get("author"),
+                    "series_name": updated_item.get("series_name"),
+                    "series_order": int(updated_item["series_order"]) if updated_item.get("series_order") else None,
                     "s3_url": updated_item.get("s3_url"),
                 },
             )
