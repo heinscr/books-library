@@ -233,6 +233,13 @@ function logout() {
         clearTimeout(window.tokenRefreshTimer);
     }
     
+    // Hide admin-only UI elements
+    const fabUpload = document.getElementById('fabUpload');
+    if (fabUpload) {
+        fabUpload.style.display = 'none';
+    }
+    window.isUserAdmin = false;
+    
     showLoggedOutState();
     document.getElementById('userMenu').classList.remove('show');
     document.getElementById('booksContainer').innerHTML = '';
