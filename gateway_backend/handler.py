@@ -49,7 +49,9 @@ dynamodb = boto3.resource("dynamodb", region_name="us-east-2")
 BUCKET_NAME = os.environ.get("BUCKET_NAME", "YOUR_BUCKET")
 BOOKS_PREFIX = os.environ.get("BOOKS_PREFIX", "books/")
 BOOKS_TABLE_NAME = os.environ.get("BOOKS_TABLE")
+USER_BOOKS_TABLE_NAME = os.environ.get("USER_BOOKS_TABLE")
 books_table = dynamodb.Table(BOOKS_TABLE_NAME) if BOOKS_TABLE_NAME else None
+user_books_table = dynamodb.Table(USER_BOOKS_TABLE_NAME) if USER_BOOKS_TABLE_NAME else None
 
 
 def _response(status_code: int, body: Any) -> dict:
@@ -64,6 +66,39 @@ def _response(status_code: int, body: Any) -> dict:
             "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
         },
     }
+
+
+def _get_user_id(event: dict) -> str | None:
+    """
+    Extract user ID (sub) from Cognito authorizer context.
+    
+    Returns:
+        str: The user's Cognito sub (unique identifier), or None if not authenticated
+    """
+    authorizer = event.get("requestContext", {}).get("authorizer", {})
+    claims = authorizer.get("claims", {})
+    return claims.get("sub")
+
+
+def _get_user_groups(event: dict) -> list[str]:
+    """
+    Extract user groups from Cognito authorizer context.
+    
+    Returns:
+        list: List of group names the user belongs to (e.g., ['admins'])
+    """
+    authorizer = event.get("requestContext", {}).get("authorizer", {})
+    claims = authorizer.get("claims", {})
+    groups_str = claims.get("cognito:groups", "")
+    if not groups_str:
+        return []
+    # Groups come as comma-separated string
+    return [g.strip() for g in groups_str.split(",") if g.strip()]
+
+
+def _is_admin(event: dict) -> bool:
+    """Check if the user is in the admins group"""
+    return "admins" in _get_user_groups(event)
 
 
 def _get_path_param(event: dict, param: str) -> tuple[str | None, dict | None]:
@@ -160,13 +195,21 @@ def _validate_boolean_field(body: dict, field: str) -> dict | None:
 
 def list_handler(event, context):
     """
-    Lambda handler to list all books from DynamoDB
-    Returns list of books with metadata from DynamoDB
+    Lambda handler to list all books from DynamoDB with user-specific read status
+    Returns list of books with metadata from Books table and read status from UserBooks table
     """
     logger.info("list_handler invoked", extra={"table": BOOKS_TABLE_NAME})
 
     try:
-        # Scan the DynamoDB table
+        # Get user ID
+        user_id = _get_user_id(event)
+        if not user_id:
+            return _response(401, {"error": "Unauthorized", "message": "User not authenticated"})
+        
+        # Check if user is admin
+        is_admin = _is_admin(event)
+
+        # Scan the Books table
         response = books_table.scan()
         items = response.get("Items", [])
 
@@ -177,6 +220,20 @@ def list_handler(event, context):
 
         logger.info(f"Retrieved {len(items)} books from DynamoDB")
 
+        # Get user-specific read status for all books
+        user_read_status = {}
+        try:
+            # Query all UserBooks entries for this user
+            user_response = user_books_table.query(
+                KeyConditionExpression="userId = :uid",
+                ExpressionAttributeValues={":uid": user_id}
+            )
+            for item in user_response.get("Items", []):
+                user_read_status[item["bookId"]] = item.get("read", False)
+        except Exception as e:
+            logger.warning(f"Error fetching user read status: {str(e)}")
+            # Continue without user read status
+
         # Convert DynamoDB items to API response format
         books = []
         for item in items:
@@ -185,7 +242,7 @@ def list_handler(event, context):
                 "id": item.get("id"),
                 "name": item.get("name"),
                 "created": item.get("created"),
-                "read": item.get("read", False),
+                "read": user_read_status.get(item.get("id"), False),  # User-specific read status
                 "s3_url": item.get("s3_url"),
             }
             if "author" in item:
@@ -202,7 +259,13 @@ def list_handler(event, context):
         # Sort by created date (most recent first)
         books.sort(key=lambda x: x.get("created", ""), reverse=True)
 
-        return _response(200, books)
+        # Add user info to response
+        response_data = {
+            "books": books,
+            "isAdmin": is_admin
+        }
+
+        return _response(200, response_data)
 
     except Exception as e:
         logger.error(f"Error listing books: {str(e)}", exc_info=True)
@@ -224,7 +287,12 @@ def get_book_handler(event, context):
         if error:
             return error
 
-        logger.info(f"Fetching book: {book_id}")
+        # Get user ID for user-specific read status
+        user_id = _get_user_id(event)
+        if not user_id:
+            return _response(401, {"error": "Unauthorized", "message": "User not authenticated"})
+
+        logger.info(f"Fetching book: {book_id} for user: {user_id}")
 
         # Look up book in DynamoDB
         try:
@@ -240,6 +308,21 @@ def get_book_handler(event, context):
         except ClientError as e:
             logger.error(f"DynamoDB error: {str(e)}", exc_info=True)
             return _response(500, {"error": "Database Error", "message": str(e)})
+
+        # Get user-specific read status from UserBooks table
+        read_status = False
+        try:
+            user_book_response = user_books_table.get_item(
+                Key={
+                    "userId": user_id,
+                    "bookId": book_id
+                }
+            )
+            if "Item" in user_book_response:
+                read_status = user_book_response["Item"].get("read", False)
+        except ClientError as e:
+            # Log error but continue - read status will default to False
+            logger.error(f"Error fetching UserBooks record: {str(e)}", exc_info=True)
 
         # Get S3 URL from DynamoDB record
         s3_url = book_item.get("s3_url")
@@ -264,14 +347,14 @@ def get_book_handler(event, context):
             ExpiresIn=3600,  # 1 hour
         )
 
-        # Return book metadata with presigned URL
+        # Return book metadata with presigned URL and user-specific read status
         return _response(
             200,
             {
                 "id": book_id,
                 "name": book_item.get("name"),
                 "created": book_item.get("created"),
-                "read": book_item.get("read", False),
+                "read": read_status,  # User-specific read status
                 "author": book_item.get("author"),
                 "series_name": book_item.get("series_name"),
                 "series_order": int(book_item["series_order"]) if book_item.get("series_order") else None,
@@ -288,19 +371,26 @@ def get_book_handler(event, context):
 
 def update_book_handler(event, context):
     """
-    Lambda handler to update book metadata in DynamoDB
+    Lambda handler to update book metadata and user-specific read status
     Expects book ID in path parameter 'id'
-    Accepts JSON body with fields to update (e.g., read, author, name, series_name, series_order)
+    Accepts JSON body with fields to update:
+    - read: user-specific read status (stored in UserBooks table)
+    - author, name, series_name, series_order: book metadata (stored in Books table)
     """
     logger.info("update_book_handler invoked")
 
     try:
+        # Get user ID
+        user_id = _get_user_id(event)
+        if not user_id:
+            return _response(401, {"error": "Unauthorized", "message": "User not authenticated"})
+
         # Get the book ID from path parameters
         book_id, error = _get_path_param(event, "id")
         if error:
             return error
 
-        logger.info(f"Updating book: {book_id}")
+        logger.info(f"Updating book: {book_id} for user: {user_id}")
 
         # Parse request body
         body, error = _parse_json_body(event)
@@ -348,94 +438,137 @@ def update_book_handler(event, context):
                         {"error": "Bad Request", "message": "series_order must be an integer"}
                     )
 
-        # Build update expression dynamically
-        update_expr_parts = []
-        remove_expr_parts = []
-        expr_attr_values = {}
-        expr_attr_names = {}
-
-        # Handle updatable fields
+        # Separate user-specific fields from book metadata fields
+        user_specific_fields = {}
+        book_metadata_fields = {}
+        
         if "read" in body:
-            update_expr_parts.append("#read = :read")
-            expr_attr_values[":read"] = bool(body["read"])
-            expr_attr_names["#read"] = "read"
-
+            user_specific_fields["read"] = bool(body["read"])
         if "author" in body:
-            update_expr_parts.append("#author = :author")
-            expr_attr_values[":author"] = str(body["author"])
-            expr_attr_names["#author"] = "author"
-
+            book_metadata_fields["author"] = str(body["author"])
         if "name" in body:
-            update_expr_parts.append("#name = :name")
-            expr_attr_values[":name"] = str(body["name"])
-            expr_attr_names["#name"] = "name"
-
+            book_metadata_fields["name"] = str(body["name"])
         if "series_name" in body:
-            update_expr_parts.append("#series_name = :series_name")
-            expr_attr_values[":series_name"] = str(body["series_name"])
-            expr_attr_names["#series_name"] = "series_name"
-
+            book_metadata_fields["series_name"] = str(body["series_name"])
         if "series_order" in body:
-            series_order = body["series_order"]
-            if series_order is None or series_order == "":
-                # Remove the attribute if null/empty
-                remove_expr_parts.append("#series_order")
-                expr_attr_names["#series_order"] = "series_order"
-            else:
-                update_expr_parts.append("#series_order = :series_order")
-                expr_attr_values[":series_order"] = int(series_order)
-                expr_attr_names["#series_order"] = "series_order"
+            book_metadata_fields["series_order"] = body["series_order"]
 
-        if not update_expr_parts and not remove_expr_parts:
+        if not user_specific_fields and not book_metadata_fields:
             return _response(400, {"error": "Bad Request", "message": "No valid fields to update"})
 
-        # Build the full update expression
-        update_expression_parts = []
-        if update_expr_parts:
-            update_expression_parts.append("SET " + ", ".join(update_expr_parts))
-        if remove_expr_parts:
-            update_expression_parts.append("REMOVE " + ", ".join(remove_expr_parts))
-        
-        update_expression = " ".join(update_expression_parts)
-
-        # Update the item in DynamoDB
-        try:
-            logger.info(
-                f"Updating DynamoDB item {book_id} with fields: {list(expr_attr_names.values())}"
-            )
-            response = books_table.update_item(
-                Key={"id": book_id},
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expr_attr_values,
-                ExpressionAttributeNames=expr_attr_names,
-                ReturnValues="ALL_NEW",
-                ConditionExpression="attribute_exists(id)",
-            )
-
-            updated_item = response["Attributes"]
-            logger.info(f"Successfully updated book: {book_id}")
-
-            return _response(
-                200,
-                {
-                    "id": updated_item.get("id"),
-                    "name": updated_item.get("name"),
-                    "created": updated_item.get("created"),
-                    "read": updated_item.get("read", False),
-                    "author": updated_item.get("author"),
-                    "series_name": updated_item.get("series_name"),
-                    "series_order": int(updated_item["series_order"]) if updated_item.get("series_order") else None,
-                    "s3_url": updated_item.get("s3_url"),
-                },
-            )
-
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-                logger.warning(f"Book not found: {book_id}")
-                return _response(
-                    404, {"error": "Not Found", "message": f'Book "{book_id}" not found'}
+        # Update user-specific read status if provided
+        if user_specific_fields:
+            try:
+                from datetime import UTC, datetime
+                user_books_table.put_item(
+                    Item={
+                        "userId": user_id,
+                        "bookId": book_id,
+                        "read": user_specific_fields.get("read", False),
+                        "updated": datetime.now(UTC).isoformat()
+                    }
                 )
-            raise
+                logger.info(f"Updated user read status for book {book_id}")
+            except Exception as e:
+                logger.error(f"Error updating user read status: {str(e)}")
+                # Continue to update book metadata even if user status fails
+
+        # Update book metadata if provided
+        updated_book = None
+        if book_metadata_fields:
+            # Build update expression dynamically
+            update_expr_parts = []
+            remove_expr_parts = []
+            expr_attr_values = {}
+            expr_attr_names = {}
+
+            # Handle updatable fields
+            if "author" in book_metadata_fields:
+                update_expr_parts.append("#author = :author")
+                expr_attr_values[":author"] = book_metadata_fields["author"]
+                expr_attr_names["#author"] = "author"
+
+            if "name" in book_metadata_fields:
+                update_expr_parts.append("#name = :name")
+                expr_attr_values[":name"] = book_metadata_fields["name"]
+                expr_attr_names["#name"] = "name"
+
+            if "series_name" in book_metadata_fields:
+                update_expr_parts.append("#series_name = :series_name")
+                expr_attr_values[":series_name"] = book_metadata_fields["series_name"]
+                expr_attr_names["#series_name"] = "series_name"
+
+            if "series_order" in book_metadata_fields:
+                series_order = book_metadata_fields["series_order"]
+                if series_order is None or series_order == "":
+                    # Remove the attribute if null/empty
+                    remove_expr_parts.append("#series_order")
+                    expr_attr_names["#series_order"] = "series_order"
+                else:
+                    update_expr_parts.append("#series_order = :series_order")
+                    expr_attr_values[":series_order"] = int(series_order)
+                    expr_attr_names["#series_order"] = "series_order"
+
+            # Build the full update expression
+            update_expression_parts = []
+            if update_expr_parts:
+                update_expression_parts.append("SET " + ", ".join(update_expr_parts))
+            if remove_expr_parts:
+                update_expression_parts.append("REMOVE " + ", ".join(remove_expr_parts))
+            
+            update_expression = " ".join(update_expression_parts)
+
+            # Update the item in DynamoDB
+            try:
+                logger.info(
+                    f"Updating book metadata for {book_id} with fields: {list(expr_attr_names.values())}"
+                )
+                response = books_table.update_item(
+                    Key={"id": book_id},
+                    UpdateExpression=update_expression,
+                    ExpressionAttributeValues=expr_attr_values,
+                    ExpressionAttributeNames=expr_attr_names,
+                    ReturnValues="ALL_NEW",
+                    ConditionExpression="attribute_exists(id)",
+                )
+
+                updated_book = response["Attributes"]
+                logger.info(f"Successfully updated book metadata: {book_id}")
+
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                    logger.warning(f"Book not found: {book_id}")
+                    return _response(
+                        404, {"error": "Not Found", "message": f'Book "{book_id}" not found'}
+                    )
+                raise
+        else:
+            # If only updating read status, fetch book metadata
+            try:
+                response = books_table.get_item(Key={"id": book_id})
+                if "Item" not in response:
+                    return _response(
+                        404, {"error": "Not Found", "message": f'Book "{book_id}" not found'}
+                    )
+                updated_book = response["Item"]
+            except ClientError as e:
+                logger.error(f"Error fetching book: {str(e)}")
+                raise
+
+        # Return combined response
+        return _response(
+            200,
+            {
+                "id": updated_book.get("id"),
+                "name": updated_book.get("name"),
+                "created": updated_book.get("created"),
+                "read": user_specific_fields.get("read", False) if user_specific_fields else False,
+                "author": updated_book.get("author"),
+                "series_name": updated_book.get("series_name"),
+                "series_order": int(updated_book["series_order"]) if updated_book.get("series_order") else None,
+                "s3_url": updated_book.get("s3_url"),
+            },
+        )
 
     except Exception as e:
         logger.error(f"Error updating book: {str(e)}", exc_info=True)
@@ -736,11 +869,13 @@ def set_upload_metadata_handler(event, context):
 def delete_book_handler(event, context):
     """
     Lambda handler to delete a book from both DynamoDB and S3
+    Requires admin role to perform deletion
     Expects book ID in path parameter 'id'
 
     Deletes:
-    1. DynamoDB record with book metadata
-    2. S3 object (the .zip file)
+    1. DynamoDB record with book metadata (Books table)
+    2. All user-specific records (UserBooks table)
+    3. S3 object (the .zip file)
 
     Returns success/failure status
     """
@@ -748,11 +883,19 @@ def delete_book_handler(event, context):
 
     try:
         # Verify user is authenticated
-        authorizer = event.get("requestContext", {}).get("authorizer", {})
-        claims = authorizer.get("claims", {})
-        user_email = claims.get("email", "unknown")
+        user_id = _get_user_id(event)
+        if not user_id:
+            return _response(401, {"error": "Unauthorized", "message": "User not authenticated"})
 
-        logger.info(f"Delete request from user: {user_email}")
+        # Check if user is admin
+        if not _is_admin(event):
+            logger.warning(f"Non-admin user {user_id} attempted to delete book")
+            return _response(
+                403,
+                {"error": "Forbidden", "message": "Only administrators can delete books"}
+            )
+
+        logger.info(f"Delete request from admin user: {user_id}")
 
         # Get the book ID from path parameters
         book_id, error = _get_path_param(event, "id")
@@ -799,7 +942,35 @@ def delete_book_handler(event, context):
         else:
             logger.warning(f"No S3 URL found for book: {book_id}")
 
-        # Delete from DynamoDB
+        # Delete all UserBooks entries for this book
+        try:
+            # Query all users who have this book in their UserBooks table
+            # We need to scan since we're querying by bookId (which is the sort key)
+            scan_response = user_books_table.scan(
+                FilterExpression="bookId = :bid",
+                ExpressionAttributeValues={":bid": book_id}
+            )
+            
+            user_book_items = scan_response.get("Items", [])
+            
+            # Delete each user's entry for this book
+            for item in user_book_items:
+                user_books_table.delete_item(
+                    Key={
+                        "userId": item["userId"],
+                        "bookId": item["bookId"]
+                    }
+                )
+            
+            if user_book_items:
+                logger.info(f"Deleted {len(user_book_items)} UserBooks entries for book: {book_id}")
+            
+        except ClientError as e:
+            # Log error but continue with Books table deletion
+            logger.error(f"Error deleting UserBooks entries: {str(e)}", exc_info=True)
+            # Don't fail the entire operation if UserBooks cleanup fails
+
+        # Delete from DynamoDB Books table
         try:
             books_table.delete_item(Key={"id": book_id}, ConditionExpression="attribute_exists(id)")
 

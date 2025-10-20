@@ -37,6 +37,23 @@ Resources:
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
 
+  # DynamoDB table for user-specific book data (read status, etc.)
+  UserBooksTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: UserBooks
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: bookId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: bookId
+          KeyType: RANGE
+
   BooksFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -50,11 +67,14 @@ Resources:
           BUCKET_NAME: !Ref BucketName
           BOOKS_PREFIX: books/
           BOOKS_TABLE: !Ref BooksTable
+          USER_BOOKS_TABLE: !Ref UserBooksTable
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref BucketName
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserBooksTable
       Events:
         BooksApi:
           Type: Api
@@ -78,11 +98,14 @@ Resources:
           BUCKET_NAME: !Ref BucketName
           BOOKS_PREFIX: books/
           BOOKS_TABLE: !Ref BooksTable
+          USER_BOOKS_TABLE: !Ref UserBooksTable
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref BucketName
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserBooksTable
       Events:
         GetBookApi:
           Type: Api
@@ -104,9 +127,12 @@ Resources:
       Environment:
         Variables:
           BOOKS_TABLE: !Ref BooksTable
+          USER_BOOKS_TABLE: !Ref UserBooksTable
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserBooksTable
       Events:
         UpdateBookApi:
           Type: Api
@@ -128,11 +154,14 @@ Resources:
       Environment:
         Variables:
           BOOKS_TABLE: !Ref BooksTable
+          USER_BOOKS_TABLE: !Ref UserBooksTable
           BUCKET_NAME: !Ref BucketName
           BOOKS_PREFIX: books/
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BooksTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserBooksTable
         - S3CrudPolicy:
             BucketName: !Ref BucketName
       Events:

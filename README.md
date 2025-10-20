@@ -15,12 +15,12 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  API Gateway (REST API)                                         │
-│  ├─ Authorization: AWS Cognito (JWT tokens)                     │
+│  ├─ Authorization: AWS Cognito (JWT tokens + groups)            │
 │  └─ Routes:                                                     │
-│     ├─ GET /books - List all books with metadata                │
+│     ├─ GET /books - List all books with per-user read status    │
 │     ├─ GET /books/{id} - Get presigned download URL             │
-│     ├─ PATCH /books/{id} - Update book metadata                 │
-│     ├─ DELETE /books/{id} - Delete book from S3 & DynamoDB      │
+│     ├─ PATCH /books/{id} - Update book metadata & read status   │
+│     ├─ DELETE /books/{id} - Delete book (admins only)           │
 │     ├─ POST /upload - Get presigned URL for S3 upload           │
 │     └─ POST /upload/metadata - Set author after upload          │
 └─────────────────────────────────────────────────────────────────┘
@@ -29,24 +29,30 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
         ▼                   ▼              ▼             ▼              ▼
 ┌──────────────┐  ┌──────────────┐  ┌────────────┐  ┌──────────┐  ┌────────────┐
 │BooksFunction │  │GetBookFunc   │  │UpdateBook  │  │DeleteBook│  │Upload      │
-│(List books)  │  │(Download)    │  │(Edit meta) │  │(Remove)  │  │(Presigned) │
+│(List books)  │  │(Download)    │  │(Edit meta) │  │(Admin)   │  │(Presigned) │
 └──────────────┘  └──────────────┘  └────────────┘  └──────────┘  └────────────┘
         │                   │              │              │              │
         └───────────────────┼──────────────┼──────────────┼──────────────┘
-                            ▼              │              │
+                            ▼              ▼              │
                 ┌──────────────────────┐   │              │
-                │  DynamoDB Table      │◄──┤              │
-                │  Books (metadata)    │◄──┼──────────────┤
-                │  ├─ id, name, author │   │              │
-                │  ├─ series_name/order│   │              │
-                │  ├─ size, created    │   │        ┌─────▼────────────────┐
-                │  └─ read status      │   │        │SetMetadataFunction   │
-                └──────────────────────┘   │        │(Set author on upload)│
-                            ▲              │        └──────────────────────┘
-                            │              │
-┌──────────────────────┐    │              │
-│  S3 Bucket           │────┼──────────────┘
-│  YOUR_BUCKET/books/  │◄───┘ (delete file)
+                │  DynamoDB Tables     │   │              │
+                │  ┌─────────────────┐ │   │              │
+                │  │ Books (global)  │◄┼───┤              │
+                │  │ • id, name      │ │   │              │
+                │  │ • author, series│ │   │              │
+                │  │ • size, created │ │   │        ┌─────▼────────────────┐
+                │  └─────────────────┘ │   │        │SetMetadataFunction   │
+                │  ┌─────────────────┐ │   │        │(Set author on upload)│
+                │  │ UserBooks       │◄┼───┘        └──────────────────────┘
+                │  │ • userId+bookId │ │
+                │  │ • read (boolean)│ │
+                │  └─────────────────┘ │
+                └──────────────────────┘
+                            ▲              
+                            │              
+┌──────────────────────┐    │              
+│  S3 Bucket           │────┘
+│  YOUR_BUCKET/books/  │
 │  (Private .zip files)│
 └──────────────────────┘
          │
@@ -63,15 +69,17 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 ### Frontend
 - 📱 Clean, responsive web interface with modern design
 - 🔐 AWS Cognito authentication with auto token refresh
-- 📚 Auto-loading book list on login
+- � **Per-user read tracking** - Each user maintains their own reading progress
+- 🛡️ **Role-based permissions** - Admin-only delete functionality via Cognito groups
+- �📚 Auto-loading book list on login
 - ⬇️ One-click downloads via presigned URLs
 - 📤 **Web-based book upload** with drag-and-drop support (up to 5GB)
 - 🤖 **Smart metadata lookup** - Auto-populates author and series from Google Books API
 - 📝 **Book editor modal** - Click any book to view/edit details
 - ✏️ **Inline metadata editing** - Update author, series name, and series order
 - 📚 **Series support** - Track book series with name and order fields
-- 🗑️ **Delete books** - Remove from both S3 and DynamoDB with confirmation
-- ✅ Read/Unread status tracking (synced with backend)
+- 🗑️ **Delete books** - Remove from both S3 and DynamoDB with confirmation (admins only)
+- ✅ Read/Unread status tracking per user (synced with backend)
 - 📊 File size display (MB/GB) with smart formatting
 - 👤 Author extraction from "Author - Title.zip" format
 - 🎨 Modern card-based grid layout with hover effects
@@ -83,17 +91,18 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 ### Backend
 - 🚀 Serverless architecture (AWS Lambda + DynamoDB)
 - 🔒 Cognito-protected API endpoints (all operations authenticated)
-- 📦 DynamoDB for fast metadata access (no S3 listing required)
+- � **Per-user book tracking** - UserBooksTable stores individual user data
+- 🛡️ **Admin authorization** - Delete operations require "admins" group membership
+- 📦 Two-table design: Books (global metadata) + UserBooks (per-user data)
 - 🔗 Generates secure presigned URLs (1-hour expiration)
 - 📤 **Presigned PUT URL generation** for direct S3 uploads (up to 5GB)
 - 🏷️ **Post-upload metadata endpoint** for author and series attribution
-- 🗑️ **Safe deletion** from both DynamoDB and S3
+- 🗑️ **Safe deletion** from both DynamoDB tables and S3 (admins only)
 - ✏️ **Metadata updates** (author, read status, name, series name/order)
 - 🛡️ Path traversal protection and input validation
 - 📊 Sorted by date (newest first)
 - 🌐 CORS enabled for cross-origin requests
 - ⚡ Auto-ingestion: S3 trigger automatically adds new books to DynamoDB
-- 💾 Persistent read status across devices
 
 ## 🚀 Quick Start
 
@@ -222,6 +231,26 @@ aws cognito-idp admin-set-user-password \
   --permanent
 ```
 
+### 9. (Optional) Set Up Admin Users
+
+To grant delete permissions, add users to the "admins" group:
+
+```bash
+# Create the admins group
+aws cognito-idp create-group \
+  --user-pool-id YOUR_USER_POOL_ID \
+  --group-name admins \
+  --description "Administrators with delete permissions"
+
+# Add a user to the admins group
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id YOUR_USER_POOL_ID \
+  --username admin@example.com \
+  --group-name admins
+```
+
+Users in the "admins" group will see and can use the delete button in the book details modal. Regular users will not see the delete option.
+
 ## 📁 Project Structure
 
 ```
@@ -250,25 +279,32 @@ aws cognito-idp admin-set-user-password \
 ## 🔧 API Endpoints
 
 ### GET /books
-Lists all books from DynamoDB with complete metadata.
+Lists all books from DynamoDB with complete metadata and per-user read status.
 
 **Headers:**
 - `Authorization`: Cognito JWT token
 
 **Response:**
 ```json
-[
-  {
-    "id": "Book Title",
-    "name": "Book Title",
-    "author": "Author Name",
-    "size": 1048576,
-    "created": "2025-10-17T12:00:00+00:00",
-    "read": false,
-    "s3_url": "s3://bucket/books/Book Title.zip"
-  }
-]
+{
+  "books": [
+    {
+      "id": "Book Title",
+      "name": "Book Title",
+      "author": "Author Name",
+      "size": 1048576,
+      "created": "2025-10-17T12:00:00+00:00",
+      "read": false,
+      "s3_url": "s3://bucket/books/Book Title.zip"
+    }
+  ],
+  "isAdmin": true
+}
 ```
+
+**Notes:**
+- `read` status is per-user (stored in UserBooksTable)
+- `isAdmin` indicates if the user is in the "admins" Cognito group
 
 ### GET /books/{id}
 Generates a presigned URL for downloading a specific book and returns metadata.
@@ -294,7 +330,7 @@ Generates a presigned URL for downloading a specific book and returns metadata.
 ```
 
 ### PATCH /books/{id}
-Updates book metadata (supports read status, author, and name).
+Updates book metadata and per-user read status.
 
 **Headers:**
 - `Authorization`: Cognito JWT token
@@ -306,9 +342,16 @@ Updates book metadata (supports read status, author, and name).
 ```json
 {
   "read": true,
-  "author": "Updated Author Name"
+  "author": "Updated Author Name",
+  "name": "Updated Book Title",
+  "series_name": "Series Name",
+  "series_order": 1
 }
 ```
+
+**Notes:**
+- `read` status is stored per-user in UserBooksTable
+- Book metadata (author, name, series) is stored globally in Books table
 
 **Response:**
 ```json
@@ -322,7 +365,11 @@ Updates book metadata (supports read status, author, and name).
 ```
 
 ### DELETE /books/{id}
-Permanently deletes a book from both DynamoDB and S3 storage.
+Permanently deletes a book from S3 and both DynamoDB tables (Books and UserBooks).
+
+**Authorization:**
+- Requires user to be in the "admins" Cognito group
+- Returns 403 Forbidden if user is not an admin
 
 **Headers:**
 - `Authorization`: Cognito JWT token

@@ -308,10 +308,34 @@ async function fetchBooks() {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const books = await response.json();
+        const data = await response.json();
+        
+        // Check for error response
+        if (data.error) {
+            throw new Error(data.error + ': ' + (data.message || ''));
+        }
+        
+        // Handle new response format: {books: [], isAdmin: boolean}
+        let books;
+        let isAdmin = false;
+        
+        if (Array.isArray(data)) {
+            // Old format: direct array of books
+            books = data;
+        } else if (data.books && Array.isArray(data.books)) {
+            // New format: {books: [], isAdmin: boolean}
+            books = data.books;
+            isAdmin = data.isAdmin || false;
+        } else {
+            console.error('Unexpected response format:', data);
+            throw new Error('Unexpected response format from API');
+        }
         
         // Store books globally for filtering
         allBooks = books;
+        
+        // Store admin status globally
+        window.isUserAdmin = isAdmin;
         
         // Controls row is already shown when logged in (contains upload button)
         // No need to show/hide it here
@@ -594,8 +618,6 @@ async function toggleReadStatus(bookId, event) {
         showAlert('❌ Error: Invalid book ID', 'error');
         return;
     }
-    
-    console.log('Toggling read status for book:', bookId);
     
     const token = localStorage.getItem('idToken');
     if (!token) {
@@ -1162,6 +1184,14 @@ function showBookDetailsModal(book) {
     // Set series fields
     document.getElementById('editSeriesName').value = book.series_name || '';
     document.getElementById('editSeriesOrder').value = book.series_order || '';
+    
+    // Show/hide delete button based on admin status
+    const deleteButton = document.getElementById('deleteBookButton');
+    if (window.isUserAdmin) {
+        deleteButton.style.display = 'inline-block';
+    } else {
+        deleteButton.style.display = 'none';
+    }
     
     // Show modal
     document.getElementById('bookDetailsModal').style.display = 'flex';
