@@ -18,3 +18,5 @@ black = "*"
 ruff = "*"
 mypy = "*"
 requests = "*"  # For populate-authors.py script
+boto3-stubs = {extras = ["s3", "dynamodb"], version = "*"}
+pytest-cov = "*"

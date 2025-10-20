@@ -31,27 +31,40 @@ from urllib.parse import unquote, urlparse
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource, Table
+from mypy_boto3_s3.client import S3Client
 
 # Configure structured logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS clients
-s3_client = boto3.client(
+# Initialize AWS clients with type hints
+s3_client: S3Client = boto3.client(
     "s3", 
     region_name="us-east-2",
     endpoint_url="https://s3.us-east-2.amazonaws.com",
     config=Config(signature_version="s3v4")
 )
-dynamodb = boto3.resource("dynamodb", region_name="us-east-2")
+dynamodb: DynamoDBServiceResource = boto3.resource("dynamodb", region_name="us-east-2")
 
 # Configuration
 BUCKET_NAME = os.environ.get("BUCKET_NAME", "YOUR_BUCKET")
 BOOKS_PREFIX = os.environ.get("BOOKS_PREFIX", "books/")
 BOOKS_TABLE_NAME = os.environ.get("BOOKS_TABLE")
 USER_BOOKS_TABLE_NAME = os.environ.get("USER_BOOKS_TABLE")
-books_table = dynamodb.Table(BOOKS_TABLE_NAME) if BOOKS_TABLE_NAME else None
-user_books_table = dynamodb.Table(USER_BOOKS_TABLE_NAME) if USER_BOOKS_TABLE_NAME else None
+
+# Initialize DynamoDB tables
+# For type checking: treat as non-None (tests will mock these)
+# For production: Lambda environment must have these env vars set
+if BOOKS_TABLE_NAME:
+    books_table: Table = dynamodb.Table(BOOKS_TABLE_NAME)
+else:
+    books_table = None  # type: ignore[assignment]
+
+if USER_BOOKS_TABLE_NAME:
+    user_books_table: Table = dynamodb.Table(USER_BOOKS_TABLE_NAME)
+else:
+    user_books_table = None  # type: ignore[assignment]
 
 
 def _response(status_code: int, body: Any) -> dict:
@@ -248,12 +261,12 @@ def list_handler(event, context):
             if "author" in item:
                 book["author"] = item["author"]
             if "size" in item:
-                # Convert Decimal to int
-                book["size"] = int(item["size"]) if item["size"] else None
+                # Convert Decimal to int (DynamoDB returns numbers as Decimal)
+                book["size"] = int(item["size"]) if item["size"] else None  # type: ignore[arg-type]
             if "series_name" in item:
                 book["series_name"] = item["series_name"]
             if "series_order" in item:
-                book["series_order"] = int(item["series_order"]) if item["series_order"] else None
+                book["series_order"] = int(item["series_order"]) if item["series_order"] else None  # type: ignore[arg-type]
             books.append(book)
 
         # Sort by created date (most recent first)
@@ -334,7 +347,7 @@ def get_book_handler(event, context):
 
         # Extract bucket and key from S3 URL
         # Format: s3://bucket-name/path/to/object
-        parsed_url = urlparse(s3_url)
+        parsed_url = urlparse(str(s3_url))  # type: ignore[arg-type]
         bucket = parsed_url.netloc
         s3_key = parsed_url.path.lstrip("/")
 
@@ -357,8 +370,8 @@ def get_book_handler(event, context):
                 "read": read_status,  # User-specific read status
                 "author": book_item.get("author"),
                 "series_name": book_item.get("series_name"),
-                "series_order": int(book_item["series_order"]) if book_item.get("series_order") else None,
-                "size": int(book_item["size"]) if book_item.get("size") else None,
+                "series_order": int(book_item["series_order"]) if book_item.get("series_order") else None,  # type: ignore[arg-type]
+                "size": int(book_item["size"]) if book_item.get("size") else None,  # type: ignore[arg-type]
                 "downloadUrl": presigned_url,
                 "expiresIn": 3600,
             },
@@ -536,7 +549,7 @@ def update_book_handler(event, context):
                 logger.info(f"Successfully updated book metadata: {book_id}")
 
             except ClientError as e:
-                if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                if e.response["Error"]["Code"] == "ConditionalCheckFailedException":  # type: ignore[typeddict-item]
                     logger.warning(f"Book not found: {book_id}")
                     return _response(
                         404, {"error": "Not Found", "message": f'Book "{book_id}" not found'}
@@ -565,7 +578,7 @@ def update_book_handler(event, context):
                 "read": user_specific_fields.get("read", False) if user_specific_fields else False,
                 "author": updated_book.get("author"),
                 "series_name": updated_book.get("series_name"),
-                "series_order": int(updated_book["series_order"]) if updated_book.get("series_order") else None,
+                "series_order": int(updated_book["series_order"]) if updated_book.get("series_order") else None,  # type: ignore[arg-type]
                 "s3_url": updated_book.get("s3_url"),
             },
         )
@@ -865,7 +878,7 @@ def set_upload_metadata_handler(event, context):
             return _response(200, response_data)
 
         except ClientError as e:
-            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":  # type: ignore[typeddict-item]
                 logger.warning(f"Book not found: {book_id}")
                 return _response(
                     404, {"error": "Not Found", "message": f"Book with id {book_id} not found"}
@@ -936,7 +949,7 @@ def delete_book_handler(event, context):
             try:
                 # Parse S3 URL to get bucket and key
                 # Format: s3://bucket-name/path/to/object
-                parsed_url = urlparse(s3_url)
+                parsed_url = urlparse(str(s3_url))  # type: ignore[arg-type]
                 bucket = parsed_url.netloc
                 s3_key = parsed_url.path.lstrip("/")
 
@@ -990,7 +1003,7 @@ def delete_book_handler(event, context):
             return _response(200, {"message": "Book deleted successfully", "bookId": book_id})
 
         except ClientError as e:
-            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":  # type: ignore[typeddict-item]
                 logger.warning(f"Book not found during deletion: {book_id}")
                 return _response(
                     404, {"error": "Not Found", "message": f'Book with id "{book_id}" not found'}

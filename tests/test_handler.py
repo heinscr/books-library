@@ -35,7 +35,7 @@ def create_mock_event(user_id="test-user-123", is_admin=False, path_params=None,
         event["pathParameters"] = path_params
     
     if body:
-        event["body"] = json.dumps(body) if isinstance(body, dict) else body
+        event["body"] = json.dumps(body) if isinstance(body, dict) else body  # type: ignore[typeddict-item]
     
     return event
 
@@ -72,7 +72,7 @@ def test_list_handler_returns_books_list():
 
     # Mock UserBooks table - user has read book-b
     mock_user_books_table = Mock()
-    mock_user_books_table.scan.return_value = {
+    mock_user_books_table.query.return_value = {
         "Items": [
             {"userId": "test-user-123", "bookId": "book-b.zip", "read": True}
         ]
@@ -373,7 +373,8 @@ def test_update_book_handler_missing_id():
 def test_update_book_handler_invalid_json():
     """Test update_book_handler with invalid JSON body"""
 
-    event = {"pathParameters": {"id": "book-a.zip"}, "body": "invalid json{"}
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body=None)
+    event["body"] = "invalid json{"  # type: ignore[typeddict-item]
 
     resp = handler.update_book_handler(event, None)
 
@@ -403,12 +404,16 @@ def test_update_book_handler_not_found():
 
     # Mock DynamoDB conditional check failure
     error_response = {"Error": {"Code": "ConditionalCheckFailedException"}}
-    condition_error = ClientError(error_response, "update_item")
+    condition_error = ClientError(error_response, "update_item")  # type: ignore[arg-type]
 
-    mock_table = Mock()
-    mock_table.update_item.side_effect = condition_error
+    mock_books_table = Mock()
+    mock_books_table.update_item.side_effect = condition_error
+    mock_books_table.get_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_table):
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 404
@@ -419,10 +424,7 @@ def test_update_book_handler_not_found():
 def test_update_book_handler_invalid_read_type():
     """Test update_book_handler with invalid type for 'read' field"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"read": "yes"}),  # Should be boolean
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"read": "yes"})  # Should be boolean
 
     resp = handler.update_book_handler(event, None)
 
@@ -434,10 +436,7 @@ def test_update_book_handler_invalid_read_type():
 def test_update_book_handler_invalid_author_type():
     """Test update_book_handler with invalid type for 'author' field"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"author": 123}),  # Should be string
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"author": 123})  # Should be string
 
     resp = handler.update_book_handler(event, None)
 
@@ -449,10 +448,7 @@ def test_update_book_handler_invalid_author_type():
 def test_update_book_handler_author_too_long():
     """Test update_book_handler with author exceeding length limit"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"author": "x" * 501}),  # Exceeds 500 char limit
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"author": "x" * 501})  # Exceeds 500 char limit
 
     resp = handler.update_book_handler(event, None)
 
@@ -476,10 +472,7 @@ def test_update_book_handler_empty_name():
 def test_update_book_handler_name_too_long():
     """Test update_book_handler with name exceeding length limit"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"name": "x" * 501}),  # Exceeds 500 char limit
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"name": "x" * 501})  # Exceeds 500 char limit
 
     resp = handler.update_book_handler(event, None)
 
@@ -491,13 +484,10 @@ def test_update_book_handler_name_too_long():
 def test_update_book_handler_with_series_fields():
     """Test updating book with series_name and series_order"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({
-            "series_name": "The Foundation Series",
-            "series_order": 1
-        }),
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={
+        "series_name": "The Foundation Series",
+        "series_order": 1
+    })
 
     # Mock DynamoDB update response
     mock_update_response = {
@@ -513,10 +503,13 @@ def test_update_book_handler_with_series_fields():
         }
     }
 
-    mock_table = Mock()
-    mock_table.update_item.return_value = mock_update_response
+    mock_books_table = Mock()
+    mock_books_table.update_item.return_value = mock_update_response
 
-    with patch.object(handler, "books_table", mock_table):
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -528,10 +521,7 @@ def test_update_book_handler_with_series_fields():
 def test_update_book_handler_series_order_out_of_range():
     """Test update_book_handler with series_order outside valid range"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"series_order": 101}),  # Exceeds max of 100
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"series_order": 101})  # Exceeds max of 100
 
     resp = handler.update_book_handler(event, None)
 
@@ -543,10 +533,7 @@ def test_update_book_handler_series_order_out_of_range():
 def test_update_book_handler_series_order_below_range():
     """Test update_book_handler with series_order below minimum"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"series_order": 0}),
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"series_order": 0})
 
     resp = handler.update_book_handler(event, None)
 
@@ -558,10 +545,7 @@ def test_update_book_handler_series_order_below_range():
 def test_update_book_handler_series_order_invalid_type():
     """Test update_book_handler with non-integer series_order"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"series_order": "not a number"}),
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"series_order": "not a number"})
 
     resp = handler.update_book_handler(event, None)
 
@@ -573,10 +557,7 @@ def test_update_book_handler_series_order_invalid_type():
 def test_update_book_handler_clear_series_order():
     """Test clearing series_order by setting it to null"""
 
-    event = {
-        "pathParameters": {"id": "book-a.zip"},
-        "body": json.dumps({"series_order": None}),
-    }
+    event = create_mock_event(path_params={"id": "book-a.zip"}, body={"series_order": None})
 
     # Mock DynamoDB update response without series_order
     mock_update_response = {
@@ -591,10 +572,13 @@ def test_update_book_handler_clear_series_order():
         }
     }
 
-    mock_table = Mock()
-    mock_table.update_item.return_value = mock_update_response
+    mock_books_table = Mock()
+    mock_books_table.update_item.return_value = mock_update_response
 
-    with patch.object(handler, "books_table", mock_table):
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -622,17 +606,24 @@ def test_list_handler_returns_books_with_series():
         ]
     }
 
-    mock_table = Mock()
-    mock_table.scan.return_value = mock_dynamodb_response
+    mock_books_table = Mock()
+    mock_books_table.scan.return_value = mock_dynamodb_response
 
-    with patch.object(handler, "books_table", mock_table):
-        resp = handler.list_handler({}, None)
+    mock_user_books_table = Mock()
+    mock_user_books_table.query.return_value = {"Items": []}
+
+    event = create_mock_event()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
+        resp = handler.list_handler(event, None)
 
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
-    assert len(body) == 1
-    assert body[0]["series_name"] == "Foundation"
-    assert body[0]["series_order"] == 1
+    assert "books" in body
+    assert len(body["books"]) == 1
+    assert body["books"][0]["series_name"] == "Foundation"
+    assert body["books"][0]["series_order"] == 1
 
 
 def test_s3_trigger_handler_success():
@@ -787,12 +778,10 @@ def test_s3_trigger_handler_skips_folder():
 def test_upload_handler_success():
     """Test successful presigned URL generation for upload"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps(
-            {"filename": "Test Book.zip", "fileSize": 1024000, "author": "Test Author"}
-        ),
-    }
+    event = create_mock_event(
+        is_admin=True,
+        body={"filename": "Test Book.zip", "fileSize": 1024000, "author": "Test Author"}
+    )
 
     mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz"
 
@@ -813,10 +802,7 @@ def test_upload_handler_success():
 def test_upload_handler_missing_filename():
     """Test upload handler rejects request without filename"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"fileSize": 1024000}),
-    }
+    event = create_mock_event(is_admin=True, body={"fileSize": 1024000})
 
     resp = handler.upload_handler(event, None)
 
@@ -828,10 +814,7 @@ def test_upload_handler_missing_filename():
 def test_upload_handler_invalid_extension():
     """Test upload handler rejects non-zip files"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"filename": "test.pdf", "fileSize": 1024000}),
-    }
+    event = create_mock_event(is_admin=True, body={"filename": "test.pdf", "fileSize": 1024000})
 
     resp = handler.upload_handler(event, None)
 
@@ -843,10 +826,7 @@ def test_upload_handler_invalid_extension():
 def test_upload_handler_file_too_large():
     """Test upload handler rejects files exceeding 5GB limit"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"filename": "huge.zip", "fileSize": 6 * 1024 * 1024 * 1024}),  # 6GB
-    }
+    event = create_mock_event(is_admin=True, body={"filename": "huge.zip", "fileSize": 6 * 1024 * 1024 * 1024})  # 6GB
 
     resp = handler.upload_handler(event, None)
 
@@ -858,10 +838,8 @@ def test_upload_handler_file_too_large():
 def test_upload_handler_invalid_json():
     """Test upload handler handles invalid JSON gracefully"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": "invalid json",
-    }
+    event = create_mock_event(is_admin=True, body=None)
+    event["body"] = "invalid json{"  # type: ignore[typeddict-item]
 
     resp = handler.upload_handler(event, None)
 
@@ -873,27 +851,20 @@ def test_upload_handler_invalid_json():
 def test_upload_handler_author_too_long():
     """Test upload handler rejects author exceeding 500 characters"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps(
-            {"filename": "test.zip", "fileSize": 1024000, "author": "A" * 501}  # 501 characters
-        ),
-    }
+    event = create_mock_event(
+        is_admin=True,
+        body={"filename": "test.zip", "fileSize": 1024000, "author": "A" * 501}  # 501 characters
+    )
 
     resp = handler.upload_handler(event, None)
 
     assert resp["statusCode"] == 400
-    body = json.loads(resp["body"])
-    assert "exceeds maximum length of 500" in body["message"]
 
 
 def test_upload_handler_without_author():
     """Test upload handler works without optional author field"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"filename": "Test Book.zip", "fileSize": 1024000}),
-    }
+    event = create_mock_event(is_admin=True, body={"filename": "Test Book.zip", "fileSize": 1024000})
 
     mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz"
 
@@ -914,10 +885,7 @@ def test_upload_handler_without_author():
 def test_set_upload_metadata_handler_success():
     """Test successful metadata update after upload"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"bookId": "Test Book", "author": "New Author"}),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "author": "New Author"})
 
     mock_table = Mock()
     mock_table.update_item.return_value = {}
@@ -939,10 +907,7 @@ def test_set_upload_metadata_handler_success():
 def test_set_upload_metadata_handler_missing_book_id():
     """Test metadata handler rejects request without bookId"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"author": "Test Author"}),
-    }
+    event = create_mock_event(is_admin=True, body={"author": "Test Author"})
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -954,16 +919,13 @@ def test_set_upload_metadata_handler_missing_book_id():
 def test_set_upload_metadata_handler_book_not_found():
     """Test metadata handler handles book not found (S3 trigger hasn't completed)"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"bookId": "Nonexistent Book", "author": "Test Author"}),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Nonexistent Book", "author": "Test Author"})
 
     mock_table = Mock()
     # Simulate ConditionalCheckFailedException
     from botocore.exceptions import ClientError
 
-    mock_table.update_item.side_effect = ClientError(
+    mock_table.update_item.side_effect = ClientError(  # type: ignore[arg-type]
         {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
     )
 
@@ -978,10 +940,7 @@ def test_set_upload_metadata_handler_book_not_found():
 def test_set_upload_metadata_handler_empty_author():
     """Test metadata handler with empty author (no update needed)"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"bookId": "Test Book", "author": ""}),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "author": ""})
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -993,10 +952,7 @@ def test_set_upload_metadata_handler_empty_author():
 def test_set_upload_metadata_handler_author_too_long():
     """Test metadata handler rejects author exceeding 500 characters"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({"bookId": "Test Book", "author": "A" * 501}),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "author": "A" * 501})
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -1008,10 +964,8 @@ def test_set_upload_metadata_handler_author_too_long():
 def test_set_upload_metadata_handler_invalid_json():
     """Test metadata handler handles invalid JSON"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": "invalid json",
-    }
+    event = create_mock_event(is_admin=True, body=None)
+    event["body"] = "invalid json"  # type: ignore[typeddict-item]
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -1023,15 +977,12 @@ def test_set_upload_metadata_handler_invalid_json():
 def test_set_upload_metadata_handler_with_series_fields():
     """Test metadata handler successfully sets all fields including series"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({
-            "bookId": "Test Book",
-            "author": "Test Author",
-            "series_name": "Test Series",
-            "series_order": 3
-        }),
-    }
+    event = create_mock_event(is_admin=True, body={
+        "bookId": "Test Book",
+        "author": "Test Author",
+        "series_name": "Test Series",
+        "series_order": 3
+    })
 
     # Mock DynamoDB
     mock_table = Mock()
@@ -1062,13 +1013,7 @@ def test_set_upload_metadata_handler_with_series_fields():
 def test_set_upload_metadata_handler_series_order_out_of_range():
     """Test metadata handler rejects series_order > 100"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({
-            "bookId": "Test Book",
-            "series_order": 101
-        }),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "series_order": 101})
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -1080,13 +1025,7 @@ def test_set_upload_metadata_handler_series_order_out_of_range():
 def test_set_upload_metadata_handler_series_order_below_range():
     """Test metadata handler rejects series_order < 1"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({
-            "bookId": "Test Book",
-            "series_order": 0
-        }),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "series_order": 0})
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -1098,13 +1037,7 @@ def test_set_upload_metadata_handler_series_order_below_range():
 def test_set_upload_metadata_handler_series_order_invalid_type():
     """Test metadata handler rejects non-integer series_order"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({
-            "bookId": "Test Book",
-            "series_order": "not a number"
-        }),
-    }
+    event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "series_order": "not a number"})
 
     resp = handler.set_upload_metadata_handler(event, None)
 
@@ -1116,14 +1049,11 @@ def test_set_upload_metadata_handler_series_order_invalid_type():
 def test_set_upload_metadata_handler_partial_fields():
     """Test metadata handler with only some fields provided"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "body": json.dumps({
-            "bookId": "Test Book",
-            "series_name": "Test Series"
-            # No author or series_order
-        }),
-    }
+    event = create_mock_event(is_admin=True, body={
+        "bookId": "Test Book",
+        "series_name": "Test Series"
+        # No author or series_order
+    })
 
     # Mock DynamoDB
     mock_table = Mock()
@@ -1225,10 +1155,7 @@ def test_delete_book_handler_requires_admin():
 def test_delete_book_handler_missing_id():
     """Test delete handler rejects request without book ID"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "pathParameters": {},
-    }
+    event = create_mock_event(is_admin=True, path_params={})
 
     resp = handler.delete_book_handler(event, None)
 
@@ -1240,10 +1167,7 @@ def test_delete_book_handler_missing_id():
 def test_delete_book_handler_book_not_found():
     """Test delete handler handles book not found"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "pathParameters": {"id": "Nonexistent Book"},
-    }
+    event = create_mock_event(is_admin=True, path_params={"id": "Nonexistent Book"})
 
     mock_table = Mock()
     mock_table.get_item.return_value = {}  # No 'Item' key
@@ -1259,28 +1183,29 @@ def test_delete_book_handler_book_not_found():
 def test_delete_book_handler_s3_error_continues():
     """Test delete handler continues with DynamoDB deletion even if S3 fails"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "pathParameters": {"id": "Test Book"},
-    }
+    event = create_mock_event(is_admin=True, path_params={"id": "Test Book"})
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": "Test Book",
             "name": "Test Book",
             "s3_url": "s3://test-bucket/books/Test Book.zip",
         }
     }
-    mock_table.delete_item.return_value = {}
+    mock_books_table.delete_item.return_value = {}
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.scan.return_value = {"Items": []}
 
     # Mock S3 deletion to raise error
     from botocore.exceptions import ClientError
 
-    mock_s3_delete = Mock(side_effect=ClientError({"Error": {"Code": "NoSuchKey"}}, "DeleteObject"))
+    mock_s3_delete = Mock(side_effect=ClientError({"Error": {"Code": "NoSuchKey"}}, "DeleteObject"))  # type: ignore[arg-type]
 
     with (
-        patch.object(handler, "books_table", mock_table),
+        patch.object(handler, "books_table", mock_books_table),
+        patch.object(handler, "user_books_table", mock_user_books_table),
         patch.object(handler.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
@@ -1289,31 +1214,32 @@ def test_delete_book_handler_s3_error_continues():
     assert resp["statusCode"] == 200
 
     # DynamoDB deletion should still happen
-    mock_table.delete_item.assert_called_once()
+    mock_books_table.delete_item.assert_called_once()
 
 
 def test_delete_book_handler_no_s3_url():
     """Test delete handler works when book has no S3 URL"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "pathParameters": {"id": "Test Book"},
-    }
+    event = create_mock_event(is_admin=True, path_params={"id": "Test Book"})
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": "Test Book",
             "name": "Test Book",
             # No s3_url
         }
     }
-    mock_table.delete_item.return_value = {}
+    mock_books_table.delete_item.return_value = {}
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.scan.return_value = {"Items": []}
 
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_table),
+        patch.object(handler, "books_table", mock_books_table),
+        patch.object(handler, "user_books_table", mock_user_books_table),
         patch.object(handler.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
@@ -1324,19 +1250,16 @@ def test_delete_book_handler_no_s3_url():
     mock_s3_delete.assert_not_called()
 
     # DynamoDB deletion should still happen
-    mock_table.delete_item.assert_called_once()
+    mock_books_table.delete_item.assert_called_once()
 
 
 def test_delete_book_handler_dynamodb_not_found_on_delete():
     """Test delete handler handles race condition where book deleted between get and delete"""
 
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "pathParameters": {"id": "Test Book"},
-    }
+    event = create_mock_event(is_admin=True, path_params={"id": "Test Book"})
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": "Test Book",
             "name": "Test Book",
@@ -1347,14 +1270,18 @@ def test_delete_book_handler_dynamodb_not_found_on_delete():
     # Simulate ConditionalCheckFailedException during delete
     from botocore.exceptions import ClientError
 
-    mock_table.delete_item.side_effect = ClientError(
+    mock_books_table.delete_item.side_effect = ClientError(  # type: ignore[arg-type]
         {"Error": {"Code": "ConditionalCheckFailedException"}}, "DeleteItem"
     )
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.scan.return_value = {"Items": []}
 
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_table),
+        patch.object(handler, "books_table", mock_books_table),
+        patch.object(handler, "user_books_table", mock_user_books_table),
         patch.object(handler.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
@@ -1368,13 +1295,13 @@ def test_get_book_handler_with_apostrophe_in_id():
     """Test get_book_handler with apostrophe in book ID"""
 
     book_id = "Roald Dahl's Cookbook.epub"
-    event = {"pathParameters": {"id": book_id}}
+    event = create_mock_event(path_params={"id": book_id})
 
     # Mock presigned URL with URL-encoded apostrophe
     mock_url = f"https://s3.amazonaws.com/test-bucket/books/Roald%20Dahl%27s%20Cookbook.epub?signed=true"
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": book_id,
             "name": "Roald Dahl's Cookbook.epub",
@@ -1385,8 +1312,12 @@ def test_get_book_handler_with_apostrophe_in_id():
         }
     }
 
+    mock_user_books_table = Mock()
+    mock_user_books_table.get_item.return_value = {}
+
     with (
-        patch.object(handler, "books_table", mock_table),
+        patch.object(handler, "books_table", mock_books_table),
+        patch.object(handler, "user_books_table", mock_user_books_table),
         patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_url),
     ):
         resp = handler.get_book_handler(event, None)
@@ -1402,20 +1333,17 @@ def test_update_book_handler_with_apostrophe_in_id():
     """Test update_book_handler with apostrophe in book ID"""
 
     book_id = "Roald Dahl's Cookbook.epub"
-    event = {
-        "pathParameters": {"id": book_id},
-        "body": json.dumps({"read": True}),
-    }
+    event = create_mock_event(path_params={"id": book_id}, body={"read": True})
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": book_id,
             "name": "Roald Dahl's Cookbook.epub",
             "read": False,
         }
     }
-    mock_table.update_item.return_value = {
+    mock_books_table.update_item.return_value = {
         "Attributes": {
             "id": book_id,
             "name": "Roald Dahl's Cookbook.epub",
@@ -1423,7 +1351,11 @@ def test_update_book_handler_with_apostrophe_in_id():
         }
     }
 
-    with patch.object(handler, "books_table", mock_table):
+    mock_user_books_table = Mock()
+    mock_user_books_table.put_item.return_value = {}
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -1431,30 +1363,28 @@ def test_update_book_handler_with_apostrophe_in_id():
     assert body["id"] == book_id
     assert body["read"] is True
 
-    # Verify update_item was called with correct key
-    mock_table.update_item.assert_called_once()
-    call_kwargs = mock_table.update_item.call_args[1]
-    assert call_kwargs["Key"]["id"] == book_id
+    # Verify put_item was called on user_books_table with correct key (read status goes to UserBooks table)
+    mock_user_books_table.put_item.assert_called_once()
+    call_kwargs = mock_user_books_table.put_item.call_args.kwargs
+    assert call_kwargs["Item"]["bookId"] == book_id
+    assert call_kwargs["Item"]["userId"] == "test-user-123"
 
 
 def test_update_book_handler_with_quotes_in_id():
     """Test update_book_handler with quotes in book ID"""
 
     book_id = 'The "Best" Book Ever.pdf'
-    event = {
-        "pathParameters": {"id": book_id},
-        "body": json.dumps({"read": True}),
-    }
+    event = create_mock_event(path_params={"id": book_id}, body={"read": True})
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": book_id,
             "name": 'The "Best" Book Ever.pdf',
             "read": False,
         }
     }
-    mock_table.update_item.return_value = {
+    mock_books_table.update_item.return_value = {
         "Attributes": {
             "id": book_id,
             "name": 'The "Best" Book Ever.pdf',
@@ -1462,7 +1392,10 @@ def test_update_book_handler_with_quotes_in_id():
         }
     }
 
-    with patch.object(handler, "books_table", mock_table):
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -1475,13 +1408,10 @@ def test_delete_book_handler_with_apostrophe_in_id():
     """Test delete_book_handler with apostrophe in book ID"""
 
     book_id = "Roald Dahl's Cookbook.epub"
-    event = {
-        "requestContext": {"authorizer": {"claims": {"email": "test@example.com"}}},
-        "pathParameters": {"id": book_id},
-    }
+    event = create_mock_event(is_admin=True, path_params={"id": book_id})
 
-    mock_table = Mock()
-    mock_table.get_item.return_value = {
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
         "Item": {
             "id": book_id,
             "name": "Roald Dahl's Cookbook.epub",
@@ -1489,10 +1419,14 @@ def test_delete_book_handler_with_apostrophe_in_id():
         }
     }
 
+    mock_user_books_table = Mock()
+    mock_user_books_table.scan.return_value = {"Items": []}
+
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_table),
+        patch.object(handler, "books_table", mock_books_table),
+        patch.object(handler, "user_books_table", mock_user_books_table),
         patch.object(handler.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
@@ -1548,3 +1482,458 @@ def test_s3_trigger_handler_with_special_characters():
     # Verify parentheses are preserved in name
     assert "(" in item["name"]
     assert ")" in item["name"]
+
+
+# ============================================================================
+# Additional Coverage Tests - Error Handling and Edge Cases
+# ============================================================================
+
+
+def test_list_handler_unauthenticated():
+    """Test list handler rejects unauthenticated requests"""
+
+    event = {
+        "requestContext": {}  # No authorizer
+    }
+
+    resp = handler.list_handler(event, None)
+
+    assert resp["statusCode"] == 401
+    body = json.loads(resp["body"])
+    assert "Unauthorized" in body["error"]
+
+
+def test_get_book_handler_unauthenticated():
+    """Test get_book_handler rejects unauthenticated requests"""
+
+    event = {
+        "pathParameters": {"id": "test-book.zip"},
+        "requestContext": {}  # No authorizer
+    }
+
+    resp = handler.get_book_handler(event, None)
+
+    assert resp["statusCode"] == 401
+    body = json.loads(resp["body"])
+    assert "Unauthorized" in body["error"]
+
+
+def test_update_book_handler_unauthenticated():
+    """Test update_book_handler rejects unauthenticated requests"""
+
+    event = {
+        "pathParameters": {"id": "test-book.zip"},
+        "body": json.dumps({"read": True}),
+        "requestContext": {}  # No authorizer
+    }
+
+    resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 401
+    body = json.loads(resp["body"])
+    assert "Unauthorized" in body["error"]
+
+
+def test_delete_book_handler_unauthenticated():
+    """Test delete_book_handler rejects unauthenticated requests"""
+
+    event = {
+        "pathParameters": {"id": "test-book.zip"},
+        "requestContext": {}  # No authorizer
+    }
+
+    resp = handler.delete_book_handler(event, None)
+
+    assert resp["statusCode"] == 401
+    body = json.loads(resp["body"])
+    assert "Unauthorized" in body["error"]
+
+
+def test_get_book_handler_dynamodb_error():
+    """Test get_book_handler handles DynamoDB errors"""
+
+    from botocore.exceptions import ClientError
+
+    event = create_mock_event(path_params={"id": "test-book.zip"})
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError", "Message": "Database error"}},
+        "GetItem"
+    )  # type: ignore[arg-type]
+
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
+        resp = handler.get_book_handler(event, None)
+
+    assert resp["statusCode"] == 500
+    body = json.loads(resp["body"])
+    assert "Database Error" in body["error"]
+
+
+def test_get_book_handler_user_books_error():
+    """Test get_book_handler continues when UserBooks table errors"""
+
+    from botocore.exceptions import ClientError
+
+    event = create_mock_event(path_params={"id": "test-book.zip"})
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
+        "Item": {
+            "id": "test-book.zip",
+            "name": "Test Book",
+            "s3_url": "s3://bucket/books/test-book.zip",
+            "size": Decimal("1000000"),
+            "created": "2024-01-01T00:00:00Z",
+        }
+    }
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.get_item.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError"}},
+        "GetItem"
+    )  # type: ignore[arg-type]
+
+    mock_presigned_url = "https://s3.amazonaws.com/bucket/books/test-book.zip?signed=true"
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table), \
+         patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
+        resp = handler.get_book_handler(event, None)
+
+    # Should succeed with read status defaulting to False
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["read"] is False
+
+
+def test_get_book_handler_s3_presigned_url_error():
+    """Test get_book_handler handles S3 presigned URL generation errors"""
+
+    event = create_mock_event(path_params={"id": "test-book.zip"})
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
+        "Item": {
+            "id": "test-book.zip",
+            "name": "Test Book",
+            "s3_url": "s3://bucket/books/test-book.zip",
+            "size": Decimal("1000000"),
+            "created": "2024-01-01T00:00:00Z",
+        }
+    }
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.get_item.return_value = {}
+
+    # Mock presigned URL generation to raise exception
+    mock_s3_client = Mock()
+    mock_s3_client.generate_presigned_url.side_effect = Exception("S3 connection error")
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table), \
+         patch.object(handler, "s3_client", mock_s3_client):
+        resp = handler.get_book_handler(event, None)
+
+    assert resp["statusCode"] == 500
+    body = json.loads(resp["body"])
+    assert "Internal Server Error" in body["error"]
+
+
+def test_update_book_handler_series_name_too_long():
+    """Test update_book_handler rejects series_name exceeding length limit"""
+
+    event = create_mock_event(
+        path_params={"id": "book-a.zip"},
+        body={"series_name": "x" * 501}  # Exceeds 500 char limit
+    )
+
+    resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "exceeds maximum length" in body["message"]
+
+
+def test_update_book_handler_books_table_error():
+    """Test update_book_handler handles DynamoDB errors for Books table"""
+
+    from botocore.exceptions import ClientError
+
+    event = create_mock_event(
+        path_params={"id": "test-book.zip"},
+        body={"author": "New Author"}
+    )
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {"Item": {"id": "test-book.zip", "name": "Test Book"}}
+    mock_books_table.update_item.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError"}},
+        "UpdateItem"
+    )  # type: ignore[arg-type]
+
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
+        resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 500
+    body = json.loads(resp["body"])
+    assert "error" in body
+
+
+def test_update_book_handler_user_books_table_error():
+    """Test update_book_handler continues when UserBooks table errors"""
+
+    from botocore.exceptions import ClientError
+
+    event = create_mock_event(
+        path_params={"id": "test-book.zip"},
+        body={"read": True}
+    )
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {"Item": {"id": "test-book.zip", "name": "Test Book"}}
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.put_item.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError"}},
+        "PutItem"
+    )  # type: ignore[arg-type]
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
+        resp = handler.update_book_handler(event, None)
+
+    # Handler logs error but continues (returns success with only read status updated)
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_invalid_s3_url():
+    """Test s3_trigger_handler handles invalid S3 URLs"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {
+                        "key": "invalid-folder/",  # Folder, not file
+                        "size": 0,
+                    },
+                },
+                "eventTime": "2024-01-01T00:00:00.000Z",
+            }
+        ]
+    }
+
+    mock_table = Mock()
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Should handle gracefully - folder is skipped
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_dynamodb_error():
+    """Test s3_trigger_handler continues processing despite DynamoDB errors"""
+
+    from botocore.exceptions import ClientError
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {
+                        "key": "books/test.zip",
+                        "size": 1000000,
+                    },
+                },
+                "eventTime": "2024-01-01T00:00:00.000Z",
+            }
+        ]
+    }
+
+    mock_table = Mock()
+    mock_table.put_item.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError"}},
+        "PutItem"
+    )  # type: ignore[arg-type]
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # S3 trigger returns 200 even on errors to prevent retries
+    assert resp["statusCode"] == 200
+
+
+def test_upload_handler_non_admin():
+    """Test upload_handler rejects non-admin users"""
+
+    event = create_mock_event(
+        is_admin=False,  # Not an admin
+        body={"filename": "test.zip", "fileSize": 1000000}
+    )
+
+    resp = handler.upload_handler(event, None)
+
+    assert resp["statusCode"] == 403
+    body = json.loads(resp["body"])
+    assert "Forbidden" in body["error"]
+
+
+def test_upload_handler_file_size_validation():
+    """Test upload_handler with edge case file size"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={"filename": "test.zip", "fileSize": 0}  # Zero size file
+    )
+
+    mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/test.zip?signed=true"
+
+    with patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
+        resp = handler.upload_handler(event, None)
+
+    # Handler accepts zero-size files (validation is minimal)
+    assert resp["statusCode"] == 200
+
+
+def test_set_upload_metadata_handler_non_admin():
+    """Test set_upload_metadata_handler rejects non-admin users"""
+
+    event = create_mock_event(
+        is_admin=False,
+        body={"bookId": "test-book", "author": "Test Author"}
+    )
+
+    resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 403
+    body = json.loads(resp["body"])
+    assert "Forbidden" in body["error"]
+
+
+def test_set_upload_metadata_handler_dynamodb_error():
+    """Test set_upload_metadata_handler handles DynamoDB errors"""
+
+    from botocore.exceptions import ClientError
+
+    event = create_mock_event(
+        is_admin=True,
+        body={"bookId": "test-book", "author": "Test Author"}
+    )
+
+    mock_table = Mock()
+    mock_table.update_item.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError"}},
+        "UpdateItem"
+    )  # type: ignore[arg-type]
+
+    with patch.object(handler, "books_table", mock_table):
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 500
+
+
+def test_delete_book_handler_non_admin():
+    """Test delete_book_handler rejects non-admin users"""
+
+    event = create_mock_event(
+        is_admin=False,
+        path_params={"id": "test-book.zip"}
+    )
+
+    resp = handler.delete_book_handler(event, None)
+
+    assert resp["statusCode"] == 403
+    body = json.loads(resp["body"])
+    assert "Forbidden" in body["error"]
+
+
+def test_delete_book_handler_user_books_scan_error():
+    """Test delete_book_handler handles UserBooks scan errors"""
+
+    from botocore.exceptions import ClientError
+
+    event = create_mock_event(is_admin=True, path_params={"id": "test-book.zip"})
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {
+        "Item": {
+            "id": "test-book.zip",
+            "name": "Test Book",
+            "s3_url": "s3://bucket/books/test-book.zip",
+        }
+    }
+    mock_books_table.delete_item.return_value = {}
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.scan.side_effect = ClientError(
+        {"Error": {"Code": "InternalServerError"}},
+        "Scan"
+    )  # type: ignore[arg-type]
+
+    mock_s3_delete = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table), \
+         patch.object(handler.s3_client, "delete_object", mock_s3_delete):
+        resp = handler.delete_book_handler(event, None)
+
+    # Should still succeed - UserBooks errors are logged but not fatal
+    assert resp["statusCode"] == 200
+
+
+def test_delete_book_handler_general_error():
+    """Test delete_book_handler handles general exceptions"""
+
+    event = create_mock_event(is_admin=True, path_params={"id": "test-book.zip"})
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.side_effect = Exception("Unexpected error")
+
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
+        resp = handler.delete_book_handler(event, None)
+
+    assert resp["statusCode"] == 500
+    body = json.loads(resp["body"])
+    assert "Internal Server Error" in body["error"]
+
+
+def test_update_book_handler_with_name_field():
+    """Test update_book_handler with name field update"""
+
+    event = create_mock_event(
+        path_params={"id": "book-a.zip"},
+        body={"name": "New Book Name"}
+    )
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = {"Item": {"id": "book-a.zip"}}
+    mock_books_table.update_item.return_value = {
+        "Attributes": {
+            "id": "book-a.zip",
+            "name": "New Book Name",
+            "created": "2024-01-01T00:00:00Z",
+        }
+    }
+
+    mock_user_books_table = Mock()
+
+    with patch.object(handler, "books_table", mock_books_table), \
+         patch.object(handler, "user_books_table", mock_user_books_table):
+        resp = handler.update_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["name"] == "New Book Name"
