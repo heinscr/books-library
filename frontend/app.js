@@ -357,8 +357,8 @@ async function fetchBooks() {
             fabUpload.style.display = isAdmin ? 'flex' : 'none';
         }
         
-        // Render the books
-        renderBooks(books);
+        // Render the books (pass true to show success toast on initial fetch)
+        renderBooks(books, false, true);
         
     } catch (error) {
         showAlert(`❌ Failed to load books: ${error.message}`, 'error');
@@ -368,7 +368,7 @@ async function fetchBooks() {
     }
 }
 
-function renderBooks(books, groupByAuthor = false) {
+function renderBooks(books, groupByAuthor = false, showSuccessToast = false) {
     const booksContainer = document.getElementById('booksContainer');
     booksContainer.innerHTML = '';
     
@@ -389,7 +389,10 @@ function renderBooks(books, groupByAuthor = false) {
         renderBooksAsGrid(books);
     }
     
-    showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+    // Only show success toast on initial fetch, not on filter changes
+    if (showSuccessToast) {
+        showAlert(`✅ Loaded ${books.length} books successfully`, 'success');
+    }
 }
 
 function renderBooksAsGrid(books) {
@@ -601,13 +604,13 @@ function applyFilters() {
         filteredBooks = allBooks.filter(book => !book.read);
     }
     
-    // Re-render with filtered books
+    // Re-render with filtered books (no toast on filter change)
     renderBooks(filteredBooks, groupByAuthor);
     
-    // Update success message
+    // Only show message when actually hiding books
     if (hideRead && filteredBooks.length < allBooks.length) {
         const hiddenCount = allBooks.length - filteredBooks.length;
-        showAlert(`📚 Showing ${filteredBooks.length} books (${hiddenCount} read books hidden)`, 'success');
+        showAlert(`📚 Showing ${filteredBooks.length} books (${hiddenCount} read books hidden)`, 'info');
     }
 }
 
