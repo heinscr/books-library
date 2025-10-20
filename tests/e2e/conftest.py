@@ -9,9 +9,8 @@ import pytest
 
 @pytest.fixture(scope="session")
 def base_url():
-    """Base URL for the frontend application."""
-    # Use environment variable if set, otherwise use production URL
-    return os.getenv("BASE_URL", "https://books.crackpow.com")
+    """Get base URL from environment variable or use default"""
+    return os.getenv("BASE_URL", "https://books.example.com")
 
 
 @pytest.fixture(scope="session")

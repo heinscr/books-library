@@ -5,13 +5,13 @@ This document describes the migration from the old S3 bucket structure to a dedi
 ## Migration Overview
 
 **Date:** October 19, 2025  
-**Old Bucket:** `s3://crackpow/books/`  
-**New Bucket:** `s3://crackpow-books/books/`  
+**Old Bucket:** `s3://old-bucket/books/`  
+**New Bucket:** `s3://new-bucket/books/`  
 **Status:** ✅ Completed
 
 ## Why Migrate?
 
-The books were originally stored in a shared bucket (`crackpow`) alongside other application data. This migration moves them to a dedicated bucket (`crackpow-books`) for:
+The books were originally stored in a shared bucket alongside other application data. This migration moves them to a dedicated bucket for:
 
 1. **Better organization** - Clear separation of book storage from other resources
 2. **Easier management** - Dedicated bucket policies and access controls
@@ -31,14 +31,14 @@ The books were originally stored in a shared bucket (`crackpow`) alongside other
 
 ### 1. Create New Bucket
 ```bash
-AWS_PROFILE=craig-dev aws s3 mb s3://crackpow-books --region us-east-2
+aws s3 mb s3://new-bucket --region us-east-2
 ```
 
 ### 2. Copy Files to New Bucket
 ```bash
-AWS_PROFILE=craig-dev aws s3 sync \
-  s3://crackpow/books/ \
-  s3://crackpow-books/books/ \
+aws s3 sync \
+  s3://old-bucket/books/ \
+  s3://new-bucket/books/ \
   --region us-east-2
 ```
 
@@ -47,7 +47,7 @@ AWS_PROFILE=craig-dev aws s3 sync \
 ### 3. Update DynamoDB Records
 Used migration script to update all S3 URLs in the Books table:
 ```bash
-AWS_PROFILE=craig-dev AWS_REGION=us-east-2 \
+OLD_BUCKET=old-bucket NEW_BUCKET=new-bucket AWS_REGION=us-east-2 \
   python3 scripts/migrate-bucket.py
 ```
 
@@ -57,22 +57,22 @@ AWS_PROFILE=craig-dev AWS_REGION=us-east-2 \
 Updated `samconfig.toml`:
 ```toml
 parameter_overrides = [
-    "BucketName=crackpow-books",
+    "BucketName=new-bucket",
     # ... other params
 ]
 ```
 
 Deployed Lambda functions:
 ```bash
-AWS_PROFILE=craig-dev sam build && sam deploy
+sam build && sam deploy
 ```
 
 ### 5. Configure Bucket Permissions
 
 #### Public Access Block Settings
 ```bash
-AWS_PROFILE=craig-dev aws s3api put-public-access-block \
-  --bucket crackpow-books \
+aws s3api put-public-access-block \
+  --bucket new-bucket \
   --public-access-block-configuration \
     "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
 ```
@@ -95,14 +95,14 @@ Created policy to allow:
                 ]
             },
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::crackpow-books/books/*"
+            "Resource": "arn:aws:s3:::new-bucket/books/*"
         },
         {
             "Sid": "AllowPublicReadViaPresignedUrl",
             "Effect": "Allow",
             "Principal": "*",
             "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::crackpow-books/books/*",
+            "Resource": "arn:aws:s3:::new-bucket/books/*",
             "Condition": {
                 "StringEquals": {
                     "s3:authType": "REST-QUERY-STRING"
@@ -197,9 +197,9 @@ If needed, rollback can be performed by:
 
 1. Reverting `samconfig.toml` to old bucket name
 2. Running migration script in reverse:
-   ```python
-   OLD_BUCKET = "crackpow-books"
-   NEW_BUCKET = "crackpow"
+   ```bash
+   OLD_BUCKET=new-bucket NEW_BUCKET=old-bucket AWS_REGION=us-east-2 \
+     python3 scripts/migrate-bucket.py
    ```
 3. Redeploying Lambda functions
 4. Updating bucket policies on old bucket
@@ -207,14 +207,14 @@ If needed, rollback can be performed by:
 ## Future Considerations
 
 ### Old Bucket Cleanup
-The old bucket (`s3://crackpow/books/`) still contains the original files. After confirming the migration is stable:
+The old bucket still contains the original files. After confirming the migration is stable:
 
 ```bash
 # List files in old location
-AWS_PROFILE=craig-dev aws s3 ls s3://crackpow/books/ --recursive
+aws s3 ls s3://old-bucket/books/ --recursive
 
 # Optional: Delete old files (BE CAREFUL!)
-# AWS_PROFILE=craig-dev aws s3 rm s3://crackpow/books/ --recursive
+# aws s3 rm s3://old-bucket/books/ --recursive
 ```
 
 ⚠️ **Note:** Keep old files for at least 30 days as a backup before deletion.
@@ -231,7 +231,7 @@ AWS_PROFILE=craig-dev aws s3 ls s3://crackpow/books/ --recursive
 
 **Usage:**
 ```bash
-AWS_PROFILE=your-profile AWS_REGION=us-east-2 \
+OLD_BUCKET=your-old-bucket NEW_BUCKET=your-new-bucket AWS_REGION=us-east-2 \
   python3 scripts/migrate-bucket.py
 ```
 

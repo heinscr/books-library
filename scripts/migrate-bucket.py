@@ -3,18 +3,29 @@
 Migrate S3 URLs in DynamoDB from old bucket to new bucket.
 
 Usage:
-    AWS_PROFILE=your-profile AWS_REGION=us-east-2 python3 migrate-bucket.py
+    OLD_BUCKET=my-old-bucket NEW_BUCKET=my-new-bucket AWS_REGION=us-east-2 python3 migrate-bucket.py
+
+Configuration:
+    Set OLD_BUCKET and NEW_BUCKET via environment variables or create a local
+    config file (not tracked in git) with the bucket names.
 """
 
 import boto3
 import os
 import sys
 
-# Configuration
-OLD_BUCKET = "crackpow"
-NEW_BUCKET = "crackpow-books"
-TABLE_NAME = "Books"
+# Configuration from environment variables
+OLD_BUCKET = os.environ.get("OLD_BUCKET")
+NEW_BUCKET = os.environ.get("NEW_BUCKET")
+TABLE_NAME = os.environ.get("DYNAMODB_TABLE", "Books")
 REGION = os.environ.get("AWS_REGION", "us-east-2")
+
+# Validate required configuration
+if not OLD_BUCKET or not NEW_BUCKET:
+    print("❌ Error: OLD_BUCKET and NEW_BUCKET environment variables are required")
+    print("\nUsage:")
+    print("  OLD_BUCKET=my-old-bucket NEW_BUCKET=my-new-bucket python3 migrate-bucket.py")
+    sys.exit(1)
 
 def migrate_s3_urls():
     """Update all S3 URLs in DynamoDB from old bucket to new bucket."""

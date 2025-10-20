@@ -16,7 +16,7 @@ Architecture:
 - S3 Event -> Lambda -> DynamoDB (for auto-ingestion)
 - Frontend -> upload_handler -> S3 direct upload -> s3_trigger_handler -> set_upload_metadata_handler
 
-Updated: 2025-10-19 - Migrated to crackpow-books bucket
+Updated: 2025-10-19 - Migrated to dedicated S3 bucket
 """
 
 from __future__ import annotations

@@ -103,12 +103,18 @@ Migrates S3 URLs in DynamoDB when moving books to a new S3 bucket.
 
 **Usage:**
 ```bash
-# Use defaults
-AWS_PROFILE=my-profile AWS_REGION=us-east-2 python3 migrate-bucket.py
+# Set environment variables with your bucket names
+OLD_BUCKET=my-old-bucket NEW_BUCKET=my-new-bucket AWS_REGION=us-east-2 python3 migrate-bucket.py
 
 # With venv
-AWS_PROFILE=my-profile AWS_REGION=us-east-2 .venv/bin/python scripts/migrate-bucket.py
+OLD_BUCKET=my-old-bucket NEW_BUCKET=my-new-bucket AWS_REGION=us-east-2 .venv/bin/python scripts/migrate-bucket.py
 ```
+
+**Environment Variables:**
+- `OLD_BUCKET`: Source bucket name (required)
+- `NEW_BUCKET`: Destination bucket name (required)
+- `AWS_REGION`: AWS region (default: us-east-2)
+- `DYNAMODB_TABLE`: DynamoDB table name (default: Books)
 
 **What it does:**
 1. Scans all books in DynamoDB
@@ -121,8 +127,6 @@ AWS_PROFILE=my-profile AWS_REGION=us-east-2 .venv/bin/python scripts/migrate-buc
 - After copying books to a new S3 bucket
 - Before deploying Lambda functions with new bucket configuration
 - When consolidating multiple buckets
-
-**Note:** This script updates the hardcoded bucket names in the script itself. Edit the `OLD_BUCKET` and `NEW_BUCKET` constants before running.
 
 **What it does:**
 1. Scans all `.zip` files in S3 bucket under the specified prefix

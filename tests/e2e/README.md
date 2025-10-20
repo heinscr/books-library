@@ -71,7 +71,7 @@ PYTHONPATH=. pipenv run pytest -m e2e --browser webkit
 
 ### Environment Variables
 
-- `BASE_URL`: Frontend URL (default: https://books.crackpow.com)
+- `BASE_URL`: Frontend URL (default: https://books.example.com)
 - `API_URL`: Backend API URL (default: production API)
 
 Example for local testing:
