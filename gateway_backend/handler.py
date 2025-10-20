@@ -655,7 +655,7 @@ def s3_trigger_handler(event, context):
 
 def upload_handler(event, context):
     """
-    Lambda handler to generate presigned S3 upload URL for authenticated users
+    Lambda handler to generate presigned S3 upload URL for admin users only
     Expects JSON body with:
     - filename: The name of the file to upload (must end with .zip)
     - author: (optional) Author name to associate with the book
@@ -665,12 +665,17 @@ def upload_handler(event, context):
     logger.info("upload_handler invoked")
 
     try:
+        # Check if user is admin
+        if not _is_admin(event):
+            logger.warning("Non-admin user attempted to upload")
+            return _response(403, {"error": "Forbidden", "message": "Only administrators can upload books"})
+
         # Verify user is authenticated (Cognito authorizer adds this)
         authorizer = event.get("requestContext", {}).get("authorizer", {})
         claims = authorizer.get("claims", {})
         user_email = claims.get("email", "unknown")
 
-        logger.info(f"Upload request from user: {user_email}")
+        logger.info(f"Upload request from admin user: {user_email}")
 
         # Parse request body
         body, error = _parse_json_body(event)
@@ -748,6 +753,7 @@ def set_upload_metadata_handler(event, context):
     """
     Lambda handler to set metadata (author, series_name, series_order) after S3 upload completes
     This is called by the frontend after the S3 upload finishes successfully
+    Requires admin permissions.
 
     Expects JSON body with:
     - bookId: The ID of the book (filename without .zip)
@@ -760,12 +766,17 @@ def set_upload_metadata_handler(event, context):
     logger.info("set_upload_metadata_handler invoked")
 
     try:
+        # Check if user is admin
+        if not _is_admin(event):
+            logger.warning("Non-admin user attempted to set upload metadata")
+            return _response(403, {"error": "Forbidden", "message": "Only administrators can set upload metadata"})
+
         # Verify user is authenticated
         authorizer = event.get("requestContext", {}).get("authorizer", {})
         claims = authorizer.get("claims", {})
         user_email = claims.get("email", "unknown")
 
-        logger.info(f"Set metadata request from user: {user_email}")
+        logger.info(f"Set metadata request from admin user: {user_email}")
 
         # Parse request body
         body, error = _parse_json_body(event)

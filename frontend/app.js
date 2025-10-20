@@ -337,8 +337,11 @@ async function fetchBooks() {
         // Store admin status globally
         window.isUserAdmin = isAdmin;
         
-        // Controls row is already shown when logged in (contains upload button)
-        // No need to show/hide it here
+        // Show/hide upload button based on admin status
+        const uploadBtn = document.getElementById('uploadBtn');
+        if (uploadBtn) {
+            uploadBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+        }
         
         // Render the books
         renderBooks(books);
@@ -777,6 +780,12 @@ async function downloadBook(bookId) {
 let selectedFile = null;
 
 function showUploadModal() {
+    // Check if user is admin
+    if (!window.isUserAdmin) {
+        showAlert('❌ Only administrators can upload books', 'error');
+        return;
+    }
+    
     document.getElementById('uploadModal').style.display = 'flex';
     // Reset form
     document.getElementById('bookFile').value = '';
@@ -928,6 +937,12 @@ async function fetchBookMetadata(bookTitle) {
 }
 
 async function uploadBook() {
+    // Check if user is admin
+    if (!window.isUserAdmin) {
+        showAlert('❌ Only administrators can upload books', 'error');
+        return;
+    }
+    
     if (!selectedFile) {
         showAlert('❌ Please select a file', 'error');
         return;

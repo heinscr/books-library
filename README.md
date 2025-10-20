@@ -69,11 +69,11 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 ### Frontend
 - 📱 Clean, responsive web interface with modern design
 - 🔐 AWS Cognito authentication with auto token refresh
-- � **Per-user read tracking** - Each user maintains their own reading progress
-- 🛡️ **Role-based permissions** - Admin-only delete functionality via Cognito groups
-- �📚 Auto-loading book list on login
+- 👤 **Per-user read tracking** - Each user maintains their own reading progress
+- 🛡️ **Role-based permissions** - Admin-only delete and upload functionality via Cognito groups
+-  Auto-loading book list on login
 - ⬇️ One-click downloads via presigned URLs
-- 📤 **Web-based book upload** with drag-and-drop support (up to 5GB)
+- 📤 **Web-based book upload** with drag-and-drop support (up to 5GB, admins only)
 - 🤖 **Smart metadata lookup** - Auto-populates author and series from Google Books API
 - 📝 **Book editor modal** - Click any book to view/edit details
 - ✏️ **Inline metadata editing** - Update author, series name, and series order
@@ -91,12 +91,12 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 ### Backend
 - 🚀 Serverless architecture (AWS Lambda + DynamoDB)
 - 🔒 Cognito-protected API endpoints (all operations authenticated)
-- � **Per-user book tracking** - UserBooksTable stores individual user data
-- 🛡️ **Admin authorization** - Delete operations require "admins" group membership
+- 👥 **Per-user book tracking** - UserBooksTable stores individual user data
+- 🛡️ **Admin authorization** - Delete and upload operations require "admins" group membership
 - 📦 Two-table design: Books (global metadata) + UserBooks (per-user data)
 - 🔗 Generates secure presigned URLs (1-hour expiration)
-- 📤 **Presigned PUT URL generation** for direct S3 uploads (up to 5GB)
-- 🏷️ **Post-upload metadata endpoint** for author and series attribution
+- 📤 **Presigned PUT URL generation** for direct S3 uploads (up to 5GB, admins only)
+- 🏷️ **Post-upload metadata endpoint** for author and series attribution (admins only)
 - 🗑️ **Safe deletion** from both DynamoDB tables and S3 (admins only)
 - ✏️ **Metadata updates** (author, read status, name, series name/order)
 - 🛡️ Path traversal protection and input validation
@@ -393,6 +393,10 @@ Permanently deletes a book from S3 and both DynamoDB tables (Books and UserBooks
 ### POST /upload
 Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
 
+**Authorization:**
+- Requires user to be in the "admins" Cognito group
+- Returns 403 Forbidden if user is not an admin
+
 **Headers:**
 - `Authorization`: Cognito JWT token
 
@@ -418,6 +422,10 @@ Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
 
 ### POST /upload/metadata
 Sets metadata (author, series name, series order) on a book after S3 upload completes. The frontend automatically calls Google Books API to fetch metadata when a file is selected, then sends it here.
+
+**Authorization:**
+- Requires user to be in the "admins" Cognito group
+- Returns 403 Forbidden if user is not an admin
 
 **Headers:**
 - `Authorization`: Cognito JWT token

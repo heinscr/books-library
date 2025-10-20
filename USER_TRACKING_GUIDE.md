@@ -2,10 +2,10 @@
 
 ## Overview
 
-This application now supports per-user book tracking and role-based delete permissions:
+This application supports per-user book tracking and role-based permissions:
 
 1. **Per-User Read Status**: Each Cognito user has their own tracking of which books they've read
-2. **Admin Role for Deletions**: Only users in the "admins" Cognito group can delete books
+2. **Admin Role for Deletions and Uploads**: Only users in the "admins" Cognito group can delete or upload books
 3. **Data Separation**: Global book metadata (title, author, series) is separate from user-specific data (read status)
 
 ## Architecture
@@ -31,9 +31,9 @@ This application now supports per-user book tracking and role-based delete permi
   - `cognito:groups`: Array of group memberships
   
 - **Authorization**: Cognito groups-based RBAC
-  - Users in the **"admins"** group can delete books
+  - Users in the **"admins"** group can delete and upload books
   - All authenticated users can view and update their own read status
-  - Non-admin users won't see delete buttons in the UI
+  - Non-admin users won't see delete or upload buttons in the UI
 
 ## API Changes
 
@@ -195,6 +195,7 @@ aws s3 sync frontend/ s3://your-frontend-bucket/ --exclude "config.js.example"
 5. Verify the same book shows as "unread"
 
 ### Test Admin Permissions
+**Delete permissions:**
 1. Log in as a regular user (not in admins group)
 2. Open a book's details modal
 3. Verify no delete button is visible
@@ -203,6 +204,14 @@ aws s3 sync frontend/ s3://your-frontend-bucket/ --exclude "config.js.example"
 6. Open a book's details modal
 7. Verify delete button is visible
 8. Test deleting a book
+
+**Upload permissions:**
+1. Log in as a regular user (not in admins group)
+2. Verify upload button is not visible
+3. Log out
+4. Log in as an admin user (in admins group)
+5. Verify upload button is visible
+6. Test uploading a book
 
 ### Test API Authorization
 **Regular user trying to delete (should fail):**
@@ -221,6 +230,26 @@ curl -X DELETE https://your-api.com/books/book-123 \
 # Should return 200 OK
 ```
 
+**Regular user trying to upload (should fail):**
+```bash
+# Get ID token for regular user
+curl -X POST https://your-api.com/upload \
+  -H "Authorization: <REGULAR_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "test.zip", "fileSize": 1000}'
+# Should return 403 Forbidden
+```
+
+**Admin user uploading (should succeed):**
+```bash
+# Get ID token for admin user
+curl -X POST https://your-api.com/upload \
+  -H "Authorization: <ADMIN_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "test.zip", "fileSize": 1000}'
+# Should return 200 OK with presigned URL
+```
+
 ## Troubleshooting
 
 ### Users can't mark books as read
@@ -228,13 +257,13 @@ curl -X DELETE https://your-api.com/books/book-123 \
 - Verify USER_BOOKS_TABLE environment variable is set on Lambda functions
 - Verify Lambda functions have DynamoDB permissions for UserBooks table
 
-### Delete button not showing for admins
+### Delete or upload buttons not showing for admins
 - Verify user is in the "admins" Cognito group
 - Check browser console for errors
 - Verify frontend is getting `isAdmin: true` in list response
 - Check that ID token includes `cognito:groups` claim
 
-### 403 Forbidden when deleting
+### 403 Forbidden when deleting or uploading
 - Verify user is in "admins" group (check Cognito console)
 - Verify ID token is not expired
 - Check CloudWatch logs for authorization failures
@@ -255,10 +284,14 @@ curl -X DELETE https://your-api.com/books/book-123 \
 - `get_book_handler`: Returns book with user-specific read status
 - `update_book_handler`: Separates user data from book metadata updates
 - `delete_book_handler`: Requires admin role, cleans up UserBooks entries
+- `upload_handler`: Requires admin role, generates presigned S3 upload URL
+- `set_upload_metadata_handler`: Requires admin role, sets metadata after upload
 
 ### Frontend (app.js)
-- `fetchBooks()`: Handles new response format with isAdmin flag
+- `fetchBooks()`: Handles new response format with isAdmin flag, shows/hides upload button
 - `showBookDetailsModal()`: Shows/hides delete button based on admin status
+- `showUploadModal()`: Checks admin status before showing upload modal
+- `uploadBook()`: Checks admin status before allowing upload
 - `window.isUserAdmin`: Global flag for current user's admin status
 
 ### Infrastructure (template.yaml)

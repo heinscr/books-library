@@ -466,6 +466,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    margin-left: auto; /* Keep filters on the right even when upload button is hidden */
 }
 
 .upload-btn {
