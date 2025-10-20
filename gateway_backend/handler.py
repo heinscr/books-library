@@ -25,27 +25,29 @@ import json
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource, Table
-from mypy_boto3_s3.client import S3Client
+
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb.service_resource import DynamoDBServiceResource, Table
+    from mypy_boto3_s3.client import S3Client
 
 # Configure structured logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients with type hints
-s3_client: S3Client = boto3.client(
+s3_client: "S3Client" = boto3.client(
     "s3", 
     region_name="us-east-2",
     endpoint_url="https://s3.us-east-2.amazonaws.com",
     config=Config(signature_version="s3v4")
 )
-dynamodb: DynamoDBServiceResource = boto3.resource("dynamodb", region_name="us-east-2")
+dynamodb: "DynamoDBServiceResource" = boto3.resource("dynamodb", region_name="us-east-2")
 
 # Configuration
 BUCKET_NAME = os.environ.get("BUCKET_NAME", "YOUR_BUCKET")
@@ -57,12 +59,12 @@ USER_BOOKS_TABLE_NAME = os.environ.get("USER_BOOKS_TABLE")
 # For type checking: treat as non-None (tests will mock these)
 # For production: Lambda environment must have these env vars set
 if BOOKS_TABLE_NAME:
-    books_table: Table = dynamodb.Table(BOOKS_TABLE_NAME)
+    books_table: "Table" = dynamodb.Table(BOOKS_TABLE_NAME)
 else:
     books_table = None  # type: ignore[assignment]
 
 if USER_BOOKS_TABLE_NAME:
-    user_books_table: Table = dynamodb.Table(USER_BOOKS_TABLE_NAME)
+    user_books_table: "Table" = dynamodb.Table(USER_BOOKS_TABLE_NAME)
 else:
     user_books_table = None  # type: ignore[assignment]
 
