@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Books Library API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        
+        .topbar {
+            display: none;
+        }
+        
+        .swagger-ui .info {
+            margin: 50px 0;
+        }
+        
+        .swagger-ui .info .title {
+            font-size: 36px;
+            color: #2c3e50;
+        }
+        
+        .swagger-ui .scheme-container {
+            background: #f8f9fa;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,.15);
+        }
+        
+        .swagger-ui .opblock-tag {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+            border-bottom: 2px solid #d4a574;
+        }
+        
+        .swagger-ui .opblock.opblock-get .opblock-summary-method {
+            background: #61affe;
+        }
+        
+        .swagger-ui .opblock.opblock-post .opblock-summary-method {
+            background: #49cc90;
+        }
+        
+        .swagger-ui .opblock.opblock-patch .opblock-summary-method {
+            background: #50e3c2;
+        }
+        
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method {
+            background: #f93e3e;
+        }
+        
+        /* Custom header styling */
+        .custom-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .custom-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 36px;
+            font-weight: 700;
+        }
+        
+        .custom-header p {
+            margin: 0;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .custom-header a {
+            color: #d4a574;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .custom-header a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="custom-header">
+        <h1>📚 Books Library API</h1>
+        <p>Serverless book management with per-user tracking and role-based permissions</p>
+        <p style="margin-top: 10px;">
+            <a href="https://github.com/heinscr/books-library" target="_blank">GitHub Repository</a>
+        </p>
+    </div>
+    
+    <div id="swagger-ui"></div>
+    
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
+                url: 'openapi.yaml',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                persistAuthorization: true,
+                tryItOutEnabled: true,
+                filter: true,
+                defaultModelsExpandDepth: 1,
+                defaultModelExpandDepth: 1,
+                displayRequestDuration: true,
+                docExpansion: 'list',
+                supportedSubmitMethods: ['get', 'post', 'patch', 'delete'],
+                validatorUrl: null
+            });
+            
+            window.ui = ui;
+        };
+    </script>
+</body>
+</html>

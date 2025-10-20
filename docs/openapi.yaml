@@ -1,0 +1,532 @@
+openapi: 3.0.3
+info:
+  title: Books Library API
+  description: |
+    A serverless book management system with per-user tracking and role-based permissions.
+    
+    ## Authentication
+    All endpoints require AWS Cognito JWT authentication via the `Authorization` header.
+    
+    ## Admin Permissions
+    - Upload operations require users to be in the "admins" Cognito group
+    - Delete operations require users to be in the "admins" Cognito group
+    - All other operations are available to authenticated users
+    
+    ## Per-User Tracking
+    - Read status is tracked per user in the UserBooks table
+    - Book metadata (author, title, series) is shared globally
+  version: 1.0.0
+  contact:
+    name: Books Library
+    url: https://github.com/heinscr/books-library
+
+servers:
+  - url: https://your-api-gateway-url.execute-api.region.amazonaws.com/Prod
+    description: Production API
+
+tags:
+  - name: Books
+    description: Book management operations
+  - name: Upload
+    description: Book upload operations (admin only)
+
+components:
+  securitySchemes:
+    CognitoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: AWS Cognito ID Token
+  
+  schemas:
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique book identifier (filename without .zip)
+          example: "Harry Potter and the Philosopher's Stone"
+        name:
+          type: string
+          description: Display name of the book
+          example: "Harry Potter and the Philosopher's Stone"
+        author:
+          type: string
+          description: Book author name
+          example: "J.K. Rowling"
+        series_name:
+          type: string
+          nullable: true
+          description: Name of the book series
+          example: "Harry Potter"
+        series_order:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 100
+          description: Order number in the series
+          example: 1
+        size:
+          type: integer
+          description: File size in bytes
+          example: 1048576
+        created:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2025-10-17T12:00:00+00:00"
+        read:
+          type: boolean
+          description: Per-user read status
+          example: false
+        s3_url:
+          type: string
+          description: S3 storage location
+          example: "s3://bucket/books/Book Title.zip"
+    
+    BooksList:
+      type: object
+      properties:
+        books:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+        isAdmin:
+          type: boolean
+          description: Whether the current user is in the admins group
+          example: true
+    
+    BookWithDownloadUrl:
+      allOf:
+        - $ref: '#/components/schemas/Book'
+        - type: object
+          properties:
+            downloadUrl:
+              type: string
+              format: uri
+              description: Presigned S3 download URL (expires in 1 hour)
+              example: "https://s3.amazonaws.com/..."
+            expiresIn:
+              type: integer
+              description: URL expiration time in seconds
+              example: 3600
+    
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+          description: Presigned S3 PUT URL for direct upload
+          example: "https://s3.amazonaws.com/..."
+        method:
+          type: string
+          description: HTTP method to use
+          example: "PUT"
+        filename:
+          type: string
+          description: Filename to upload
+          example: "Book Title.zip"
+        s3Key:
+          type: string
+          description: S3 object key
+          example: "books/Book Title.zip"
+        expiresIn:
+          type: integer
+          description: URL expiration time in seconds
+          example: 3600
+    
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+          example: "Bad Request"
+        message:
+          type: string
+          description: Error message
+          example: "Invalid request parameters"
+    
+    SuccessMessage:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Operation completed successfully"
+
+security:
+  - CognitoAuth: []
+
+paths:
+  /books:
+    get:
+      tags:
+        - Books
+      summary: List all books
+      description: |
+        Returns all books with complete metadata and per-user read status.
+        The `isAdmin` flag indicates if the user has admin permissions.
+      operationId: listBooks
+      responses:
+        '200':
+          description: List of books with admin status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooksList'
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /books/{id}:
+    get:
+      tags:
+        - Books
+      summary: Get book with download URL
+      description: |
+        Returns book metadata and generates a presigned S3 download URL.
+        The URL expires after 1 hour.
+      operationId: getBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Book ID (URL-encoded filename without .zip)
+          schema:
+            type: string
+          example: "Harry Potter and the Philosopher's Stone"
+      responses:
+        '200':
+          description: Book details with download URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookWithDownloadUrl'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    patch:
+      tags:
+        - Books
+      summary: Update book metadata
+      description: |
+        Updates book metadata and/or per-user read status.
+        - Read status is stored per-user in UserBooks table
+        - Book metadata (author, name, series) is stored globally
+      operationId: updateBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Book ID (URL-encoded)
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                read:
+                  type: boolean
+                  description: Per-user read status
+                author:
+                  type: string
+                  maxLength: 500
+                  description: Author name
+                name:
+                  type: string
+                  maxLength: 500
+                  description: Book title
+                series_name:
+                  type: string
+                  maxLength: 500
+                  description: Series name
+                series_order:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Series order number
+              example:
+                read: true
+                author: "J.K. Rowling"
+                series_name: "Harry Potter"
+                series_order: 1
+      responses:
+        '200':
+          description: Book updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    
+    delete:
+      tags:
+        - Books
+      summary: Delete book (admin only)
+      description: |
+        Permanently deletes a book from S3 and both DynamoDB tables.
+        Requires user to be in the "admins" Cognito group.
+        All UserBooks entries are also deleted.
+      operationId: deleteBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Book ID (URL-encoded)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Book deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Book deleted successfully"
+                  bookId:
+                    type: string
+                    example: "Book Title"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
+                message: "Only administrators can delete books"
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /upload:
+    post:
+      tags:
+        - Upload
+      summary: Get presigned upload URL (admin only)
+      description: |
+        Generates a presigned S3 PUT URL for uploading books directly to S3.
+        Supports files up to 5GB. Requires admin permissions.
+      operationId: getUploadUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - filename
+              properties:
+                filename:
+                  type: string
+                  description: Book filename (must end with .zip)
+                  example: "Book Title.zip"
+                fileSize:
+                  type: integer
+                  description: File size in bytes
+                  example: 459816876
+                author:
+                  type: string
+                  maxLength: 500
+                  description: Optional author name
+                  example: "Author Name"
+      responses:
+        '200':
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+        '400':
+          description: Bad request - Invalid filename or parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
+                message: "Only administrators can upload books"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /upload/metadata:
+    post:
+      tags:
+        - Upload
+      summary: Set metadata after upload (admin only)
+      description: |
+        Sets metadata (author, series) on a book after S3 upload completes.
+        Frontend calls this after successful upload. Requires admin permissions.
+      operationId: setUploadMetadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bookId
+              properties:
+                bookId:
+                  type: string
+                  description: Book ID (filename without .zip)
+                  example: "Book Title"
+                author:
+                  type: string
+                  maxLength: 500
+                  description: Author name
+                  example: "Author Name"
+                series_name:
+                  type: string
+                  maxLength: 500
+                  description: Series name
+                  example: "The Great Series"
+                series_order:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Series order number
+                  example: 3
+      responses:
+        '200':
+          description: Metadata updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Metadata updated successfully"
+                  bookId:
+                    type: string
+                    example: "Book Title"
+                  author:
+                    type: string
+                    example: "Author Name"
+                  series_name:
+                    type: string
+                    example: "The Great Series"
+                  series_order:
+                    type: integer
+                    example: 3
+        '400':
+          description: Bad request - Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - User is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
+                message: "Only administrators can set upload metadata"
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
