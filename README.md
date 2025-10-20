@@ -146,7 +146,7 @@ cd books-library
 ```
 
 **Configuration:**
-See [`CONFIGURATION.md`](CONFIGURATION.md) for detailed setup instructions.
+See [`CONFIGURATION.md`](docs/CONFIGURATION.md) for detailed setup instructions.
 
 Quick setup:
 ```bash
@@ -183,7 +183,7 @@ AWS_PROFILE=your-profile-name AWS_REGION=us-east-2 ./configure-s3-trigger.sh
 AWS_PROFILE=your-profile-name AWS_REGION=us-east-2 python3 migrate-books.py
 ```
 
-See `DEPLOYMENT_GUIDE.md` for detailed instructions.
+See [`DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
 
 ### 5. Configure Frontend
 
@@ -271,8 +271,16 @@ Users in the "admins" group will see and can use the delete button in the book d
 ├── template.yaml           # SAM CloudFormation template
 ├── samconfig.toml         # SAM deployment config
 ├── Pipfile                # Python dependencies
-├── DEPLOYMENT_GUIDE.md    # Detailed deployment instructions
-├── DYNAMODB_MIGRATION.md  # DynamoDB migration documentation
+├── docs/                  # Documentation
+│   ├── api-docs.html      # Swagger UI for API
+│   ├── openapi.yaml       # OpenAPI 3.0 specification
+│   ├── CONFIGURATION.md   # Setup instructions
+│   ├── DEPLOYMENT_GUIDE.md    # Detailed deployment instructions
+│   ├── DYNAMODB_MIGRATION.md  # DynamoDB migration documentation
+│   ├── S3_BUCKET_MIGRATION.md # S3 bucket migration guide
+│   ├── USER_TRACKING_GUIDE.md # Per-user tracking feature guide
+│   ├── TESTING.md         # Testing guide
+│   └── TEST_STATUS.md     # Current test status
 └── README.md              # This file
 ```
 
