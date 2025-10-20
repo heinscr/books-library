@@ -1,5 +1,7 @@
 # Configuration Guide
 
+> **Quick Start**: If you're using Terraform for infrastructure setup, see [`TERRAFORM_SETUP.md`](TERRAFORM_SETUP.md) for the complete automated workflow. This guide covers configuration details for both Terraform and manual setups.
+
 This document explains how to configure the Books Library application for your environment.
 
 ## Security Notice

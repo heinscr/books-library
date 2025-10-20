@@ -110,8 +110,58 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - AWS CLI configured with credentials
 - AWS SAM CLI installed
 - Python 3.12+
-- An S3 bucket for storing books
-- A Cognito User Pool set up
+- (Optional) Terraform for automated infrastructure setup
+
+### Deployment Options
+
+**Choose your deployment method:**
+
+📦 **[Option A: Automated with Terraform](docs/TERRAFORM_SETUP.md)** (Recommended)
+- One command creates all infrastructure
+- Automated setup of S3, DynamoDB, Cognito, IAM
+- See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for complete guide
+- See [`terraform/README.md`](terraform/README.md) for Terraform details
+
+🔧 **Option B: Manual Setup**
+- Manual AWS Console or CLI setup
+- More control over individual resources
+- See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for detailed instructions
+
+### Quick Start (Terraform)
+
+```bash
+# 1. Deploy infrastructure
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+nano terraform.tfvars  # Edit bucket names (must be globally unique)
+terraform init && terraform apply
+
+# 2. Configure and deploy backend
+cd ..
+cp samconfig.toml.example samconfig.toml
+# Update samconfig.toml with Terraform outputs
+sam build && sam deploy --profile your-profile
+
+# 3. Configure S3 trigger
+cd scripts && ./configure-s3-trigger.sh
+
+# 4. Deploy frontend
+cp frontend/config.js.example frontend/config.js
+# Update frontend/config.js with Terraform outputs
+FRONTEND_BUCKET=$(cd ../terraform && terraform output -raw frontend_bucket_name)
+aws s3 sync frontend/ s3://$FRONTEND_BUCKET/
+
+# 5. Create admin user
+make create-admin-user AWS_PROFILE=your-profile
+```
+
+**Or use the Makefile for even simpler deployment:**
+```bash
+make deploy-all AWS_PROFILE=your-profile
+make create-admin-user AWS_PROFILE=your-profile
+```
+
+See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-by-step guide.
 
 ### Runtime & Dependencies
 
@@ -127,130 +177,6 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 
 **Note:** Lambda runtime includes boto3/botocore by default. The pinned versions in `requirements.txt` are for local development consistency. Lambda will use its own managed versions, which are typically slightly behind the latest release but are automatically updated by AWS.
 
-### 1. Configure AWS Profile
-
-```bash
-# If using a named profile (not default), set the environment variable
-export AWS_PROFILE=your-profile-name
-export AWS_REGION=us-east-2  # or your preferred region
-
-# Verify your AWS identity
-aws sts get-caller-identity
-```
-
-### 2. Clone and Configure
-
-```bash
-git clone https://github.com/heinscr/books-library.git
-cd books-library
-```
-
-**Configuration:**
-See [`CONFIGURATION.md`](docs/CONFIGURATION.md) for detailed setup instructions.
-
-Quick setup:
-```bash
-# 1. Copy and configure SAM deployment settings
-cp samconfig.toml.example samconfig.toml
-# Edit samconfig.toml with your AWS resource values
-
-# 2. Copy and configure frontend
-cp frontend/config.js.example frontend/config.js
-# Edit frontend/config.js with your Cognito and API details
-```
-
-### 3. Deploy Backend
-
-```bash
-# Build the SAM application
-sam build
-
-# Deploy (first time use --guided, after that just sam deploy)
-sam deploy --guided
-```
-
-Note the API endpoint URL from the outputs.
-
-### 4. Configure S3 Trigger and Migrate Data
-
-```bash
-# Configure S3 to trigger Lambda on book uploads
-# You'll be prompted for the S3TriggerFunction ARN from the deployment
-cd scripts
-AWS_PROFILE=your-profile-name AWS_REGION=us-east-2 ./configure-s3-trigger.sh
-
-# Migrate existing books from S3 to DynamoDB
-AWS_PROFILE=your-profile-name AWS_REGION=us-east-2 python3 migrate-books.py
-```
-
-See [`DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) for detailed instructions.
-
-### 5. Configure Frontend
-
-Update `frontend/app.js` with your values:
-```javascript
-const COGNITO_CONFIG = {
-    userPoolId: 'YOUR_USER_POOL_ID',
-    clientId: 'YOUR_CLIENT_ID',
-    region: 'YOUR_COGNITO_REGION'  // Usually us-east-1
-};
-
-const API_URL = 'YOUR_API_GATEWAY_URL/books';  // From sam deploy output
-```
-
-### 6. Upload Frontend to S3
-
-```bash
-aws s3 cp frontend/ s3://YOUR_BUCKET/books-app/ --recursive
-
-# If using CloudFront, invalidate the cache
-aws cloudfront create-invalidation --distribution-id YOUR_DIST_ID --paths "/*"
-```
-
-### 7. Add Books
-
-Upload `.zip` files to your S3 bucket (they'll auto-populate in DynamoDB via S3 trigger):
-```bash
-aws s3 cp "Author - Book Title.zip" s3://YOUR_BUCKET/books/
-```
-
-**Filename Format**: For author extraction, use: `"Author Name - Book Title.zip"`
-
-### 8. Create Users
-
-```bash
-aws cognito-idp admin-create-user \
-  --user-pool-id YOUR_USER_POOL_ID \
-  --username user@example.com \
-  --temporary-password TempPass123!
-
-aws cognito-idp admin-set-user-password \
-  --user-pool-id YOUR_USER_POOL_ID \
-  --username user@example.com \
-  --password YourPassword123! \
-  --permanent
-```
-
-### 9. (Optional) Set Up Admin Users
-
-To grant delete permissions, add users to the "admins" group:
-
-```bash
-# Create the admins group
-aws cognito-idp create-group \
-  --user-pool-id YOUR_USER_POOL_ID \
-  --group-name admins \
-  --description "Administrators with delete permissions"
-
-# Add a user to the admins group
-aws cognito-idp admin-add-user-to-group \
-  --user-pool-id YOUR_USER_POOL_ID \
-  --username admin@example.com \
-  --group-name admins
-```
-
-Users in the "admins" group will see and can use the delete button in the book details modal. Regular users will not see the delete option.
-
 ## 📁 Project Structure
 
 ```
@@ -261,26 +187,38 @@ Users in the "admins" group will see and can use the delete button in the book d
 ├── frontend/                # Web interface
 │   ├── index.html          # Main HTML
 │   ├── app.js              # JavaScript logic with Cognito auth
-│   └── styles.css          # Styling
+│   ├── styles.css          # Styling
+│   └── config.js.example   # Frontend configuration template
+├── terraform/              # Infrastructure as Code
+│   ├── main.tf            # Core infrastructure definitions
+│   ├── variables.tf       # Input variables
+│   ├── outputs.tf         # Output values
+│   ├── terraform.tfvars.example  # Configuration template
+│   ├── README.md          # Terraform documentation
+│   ├── QUICK_REFERENCE.md # Command cheat sheet
+│   └── SUMMARY.md         # Quick overview
 ├── scripts/                # Deployment helper scripts
 │   ├── configure-s3-trigger.sh  # Set up S3 Lambda trigger
 │   ├── migrate-books.py         # Migrate S3 books to DynamoDB
+│   ├── populate-authors.py      # Populate Authors table
 │   └── README.md                # Scripts documentation
 ├── tests/                  # Unit tests
-│   └── test_handler.py
-├── template.yaml           # SAM CloudFormation template
-├── samconfig.toml         # SAM deployment config
-├── Pipfile                # Python dependencies
+│   └── test_handler.py    # Comprehensive test suite (79 tests, 95% coverage)
 ├── docs/                  # Documentation
-│   ├── api-docs.html      # Swagger UI for API
-│   ├── openapi.yaml       # OpenAPI 3.0 specification
-│   ├── CONFIGURATION.md   # Setup instructions
-│   ├── DEPLOYMENT_GUIDE.md    # Detailed deployment instructions
-│   ├── DYNAMODB_MIGRATION.md  # DynamoDB migration documentation
-│   ├── S3_BUCKET_MIGRATION.md # S3 bucket migration guide
-│   ├── USER_TRACKING_GUIDE.md # Per-user tracking feature guide
-│   ├── TESTING.md         # Testing guide
-│   └── TEST_STATUS.md     # Current test status
+│   ├── TERRAFORM_SETUP.md      # Complete Terraform workflow guide
+│   ├── CONFIGURATION.md        # Configuration reference
+│   ├── DEPLOYMENT_GUIDE.md     # Manual deployment guide
+│   ├── DYNAMODB_MIGRATION.md   # DynamoDB migration documentation
+│   ├── S3_BUCKET_MIGRATION.md  # S3 bucket migration guide
+│   ├── USER_TRACKING_GUIDE.md  # Per-user tracking feature guide
+│   ├── TESTING.md              # Testing guide
+│   ├── TEST_STATUS.md          # Current test status
+│   ├── api-docs.html           # Swagger UI for API
+│   └── openapi.yaml            # OpenAPI 3.0 specification
+├── template.yaml           # SAM CloudFormation template
+├── samconfig.toml.example # SAM deployment config template
+├── Makefile               # Automated deployment commands
+├── Pipfile                # Python dependencies
 └── README.md              # This file
 ```
 

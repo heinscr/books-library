@@ -1,10 +1,25 @@
-# DynamoDB Migration Deployment Guide
+# Deployment Guide
 
-## Overview
-This guide walks through deploying the DynamoDB migration for the Books Library application.
+> **Note**: This guide describes manual deployment steps. For automated infrastructure setup, see [`TERRAFORM_SETUP.md`](TERRAFORM_SETUP.md) which provides a complete, automated workflow using Terraform + SAM.
 
-## Configuration
-Before starting, ensure your AWS CLI is configured with the appropriate credentials:
+## Deployment Options
+
+### Option A: Automated with Terraform (Recommended)
+See [`TERRAFORM_SETUP.md`](TERRAFORM_SETUP.md) for:
+- Automated infrastructure provisioning
+- Complete step-by-step workflow
+- One-command deployment with Makefile
+- Best practices and cost optimization
+
+### Option B: Manual Deployment (This Guide)
+This guide covers manual deployment steps for users who:
+- Already have infrastructure set up
+- Want fine-grained control
+- Are updating an existing deployment
+
+---
+
+## Manual Deployment Overview
 
 ```bash
 # If using a named profile (not default), set the environment variable

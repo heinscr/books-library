@@ -1,0 +1,46 @@
+# AWS region
+aws_region = "us-east-2"
+
+# Optional: AWS profile to use
+# aws_profile = "your-profile-name"
+
+# Environment
+environment = "dev"
+
+# Project name
+project_name = "books-library"
+
+# S3 Bucket names (must be globally unique)
+books_bucket_name    = "my-books-library-books-dev"
+frontend_bucket_name = "my-books-library-frontend-dev"
+
+# CORS allowed origins
+cors_allowed_origins = [
+  "http://localhost:8000",
+  "http://my-books-library-frontend-dev.s3-website.us-east-2.amazonaws.com"
+]
+
+# DynamoDB table names
+books_table_name      = "Books"
+user_books_table_name = "UserBooks"
+authors_table_name    = "Authors"
+
+# Enable point-in-time recovery (recommended for production)
+enable_point_in_time_recovery = false
+
+# Cognito configuration
+cognito_user_pool_name = "books-library-users-dev"
+
+# Cognito callback/logout URLs
+cognito_callback_urls = [
+  "http://localhost:8000",
+  "http://my-books-library-frontend-dev.s3-website.us-east-2.amazonaws.com"
+]
+
+cognito_logout_urls = [
+  "http://localhost:8000",
+  "http://my-books-library-frontend-dev.s3-website.us-east-2.amazonaws.com"
+]
+
+# Optional: Cognito domain prefix (leave empty to skip hosted UI)
+# cognito_domain_prefix = "my-books-library-dev"
