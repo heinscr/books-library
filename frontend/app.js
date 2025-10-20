@@ -337,10 +337,10 @@ async function fetchBooks() {
         // Store admin status globally
         window.isUserAdmin = isAdmin;
         
-        // Show/hide upload button based on admin status
-        const uploadBtn = document.getElementById('uploadBtn');
-        if (uploadBtn) {
-            uploadBtn.style.display = isAdmin ? 'inline-flex' : 'none';
+        // Show/hide floating action button based on admin status
+        const fabUpload = document.getElementById('fabUpload');
+        if (fabUpload) {
+            fabUpload.style.display = isAdmin ? 'flex' : 'none';
         }
         
         // Render the books

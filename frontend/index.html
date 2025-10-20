@@ -43,11 +43,8 @@
 
     <!-- Main content -->
     <div class="container">
-        <!-- Controls row (upload + filter) -->
+        <!-- Controls row (filter only) -->
         <div id="controlsRow" class="controls-row" style="display: none;">
-            <button class="upload-btn" id="uploadBtn" onclick="showUploadModal()" style="display: none;">
-                📤 Upload Book
-            </button>
             <div class="filter-controls">
                 <label class="filter-toggle">
                     <input type="checkbox" id="hideReadBooks" onchange="applyFilters()">
@@ -155,6 +152,14 @@
             </div>
         </div>
     </div>
+
+    <!-- Floating Action Button for Upload (Admin Only) -->
+    <button class="fab-upload" id="fabUpload" onclick="showUploadModal()" style="display: none;" title="Upload Book">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+    </button>
 
     <!-- Load configuration -->
     <script src="config.js"></script>
