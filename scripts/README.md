@@ -98,6 +98,32 @@ python3 migrate-books.py
 - To populate table with existing books in S3
 - To re-sync if DynamoDB table is recreated
 
+### `migrate-bucket.py`
+Migrates S3 URLs in DynamoDB when moving books to a new S3 bucket.
+
+**Usage:**
+```bash
+# Use defaults
+AWS_PROFILE=my-profile AWS_REGION=us-east-2 python3 migrate-bucket.py
+
+# With venv
+AWS_PROFILE=my-profile AWS_REGION=us-east-2 .venv/bin/python scripts/migrate-bucket.py
+```
+
+**What it does:**
+1. Scans all books in DynamoDB
+2. Identifies books with old bucket URLs
+3. Confirms migration with user
+4. Updates each book's `s3_url` field to point to new bucket
+5. Reports success/failure counts
+
+**When to run:**
+- After copying books to a new S3 bucket
+- Before deploying Lambda functions with new bucket configuration
+- When consolidating multiple buckets
+
+**Note:** This script updates the hardcoded bucket names in the script itself. Edit the `OLD_BUCKET` and `NEW_BUCKET` constants before running.
+
 **What it does:**
 1. Scans all `.zip` files in S3 bucket under the specified prefix
 2. Creates DynamoDB records for each book with metadata:

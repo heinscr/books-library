@@ -11,10 +11,12 @@ This module provides seven Lambda handlers for the Books Library application:
 7. s3_trigger_handler: Auto-populates DynamoDB when books are uploaded to S3
 
 Architecture:
-- API Gateway → Lambda → DynamoDB (for metadata)
-- API Gateway → Lambda → S3 (for presigned download/upload URLs)
-- S3 Event → Lambda → DynamoDB (for auto-ingestion)
-- Frontend → upload_handler → S3 direct upload → s3_trigger_handler → set_upload_metadata_handler
+- API Gateway -> Lambda -> DynamoDB (for metadata)
+- API Gateway -> Lambda -> S3 (for presigned download/upload URLs)
+- S3 Event -> Lambda -> DynamoDB (for auto-ingestion)
+- Frontend -> upload_handler -> S3 direct upload -> s3_trigger_handler -> set_upload_metadata_handler
+
+Updated: 2025-10-19 - Migrated to crackpow-books bucket
 """
 
 from __future__ import annotations
@@ -35,7 +37,12 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # Initialize AWS clients
-s3_client = boto3.client("s3", region_name="us-east-2", config=Config(signature_version="s3v4"))
+s3_client = boto3.client(
+    "s3", 
+    region_name="us-east-2",
+    endpoint_url="https://s3.us-east-2.amazonaws.com",
+    config=Config(signature_version="s3v4")
+)
 dynamodb = boto3.resource("dynamodb", region_name="us-east-2")
 
 # Configuration
@@ -248,11 +255,13 @@ def get_book_handler(event, context):
         bucket = parsed_url.netloc
         s3_key = parsed_url.path.lstrip("/")
 
-        logger.info(f"Generating presigned URL for s3://{bucket}/{s3_key}")
+        logger.info(f"Generating presigned download URL for: {book_id}")
 
         # Generate presigned URL (valid for 1 hour)
         presigned_url = s3_client.generate_presigned_url(
-            "get_object", Params={"Bucket": bucket, "Key": s3_key}, ExpiresIn=3600  # 1 hour
+            "get_object", 
+            Params={"Bucket": bucket, "Key": s3_key}, 
+            ExpiresIn=3600,  # 1 hour
         )
 
         # Return book metadata with presigned URL
