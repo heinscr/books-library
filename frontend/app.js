@@ -262,6 +262,13 @@ function showLoggedOutState() {
     document.getElementById('userAvatar').style.display = 'none';
     document.getElementById('controlsRow').style.display = 'none';
     allBooks = [];
+    
+    // Reset login button state
+    const loginBtn = document.querySelector('.login-btn');
+    if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+    }
 }
 
 function showAlert(message, type) {
@@ -1222,6 +1229,13 @@ function showBookDetailsModal(book) {
 function closeBookDetailsModal() {
     document.getElementById('bookDetailsModal').style.display = 'none';
     currentEditingBook = null;
+    
+    // Reset delete button state
+    const deleteButton = document.getElementById('deleteBookButton');
+    if (deleteButton) {
+        deleteButton.disabled = false;
+        deleteButton.textContent = '🗑️ Delete Book';
+    }
 }
 
 async function saveBookDetails() {
