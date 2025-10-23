@@ -1,0 +1,140 @@
+.filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 20px;
+    background: rgba(248, 249, 250, 0.95);
+    border-radius: 8px;
+    border: 2px solid #d4a574;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.filter-toggle:hover {
+    border-color: #ffd700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.filter-toggle span {
+    color: #2d1f13;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.shelf-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.shelf-header h2 {
+    font-size: 28px;
+    color: #f4e8d0;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.shelf-header p {
+    color: #c9a961;
+    font-size: 16px;
+    font-style: italic;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.book-name {
+    font-weight: 600;
+    color: #2d1f13;
+    font-size: 16px;
+    flex: 1;
+}
+
+.book-size {
+    color: #8b6f47;
+    font-weight: 500;
+}
+
+.book-date {
+    color: #999;
+    font-size: 13px;
+}
+
+.download-icon {
+    font-size: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a2e;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #8b6f47;
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a08458;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Book details modal specific styles */
+.details-group {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e1e8ed;
+}
+
+.details-group:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.details-group label {
+    display: block;
+    color: #7f8c8d;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.author-book-count {
+    color: #7f8c8d;
+    font-size: 14px;
+    font-weight: 500;
+    background: rgba(212, 165, 116, 0.1);
+    padding: 4px 12px;
+    border-radius: 12px;
+}

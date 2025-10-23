@@ -1,0 +1,50 @@
+/* Main container - bookshelf style */
+.container {
+    max-width: 1400px;
+    margin: 40px auto;
+    padding: 0 40px;
+}
+
+/* Filter controls */
+.filter-controls {
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 20px;
+}
+
+/* Controls row (upload + filter on same line) */
+.controls-row {
+    display: flex;
+    justify-content: flex-end; /* Align filters to the right */
+    align-items: center;
+    margin-bottom: 30px;
+    gap: 20px;
+}
+
+.filter-controls {
+    display: flex;
+    flex-direction: row; /* Horizontal layout */
+    gap: 20px;
+    align-items: center;
+}
+
+/* Responsive adjustments for FAB */
+@media (max-width: 768px) {
+    .fab-upload {
+        bottom: 20px;
+        right: 20px;
+        width: 48px;
+        height: 48px;
+    }
+    
+    .fab-upload svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .filter-controls {
+        flex-direction: column; /* Stack vertically on mobile */
+        gap: 12px;
+    }
+}

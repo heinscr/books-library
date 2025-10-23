@@ -20,98 +20,167 @@ with open(os.path.join(FRONTEND_DIR, "styles.css.backup"), 'w') as f:
 
 print("✓ Created styles.css.backup")
 
-# Split CSS into sections based on comments and selectors
+# Define sections with their patterns (order matters - more specific first)
 sections = {
-    'base.css': {
-        'patterns': [r'^\*\s*\{', r'^body\s*\{'],
-        'content': []
-    },
-    'header.css': {
-        'patterns': [r'\.header', r'\.auth-widget', r'\.login-', r'\.user-avatar', r'\.user-menu'],
-        'content': []
-    },
-    'layout.css': {
-        'patterns': [r'\.container\s*\{', r'\.controls-row', r'\.filter-controls'],
-        'content': []
-    },
-    'alerts.css': {
-        'patterns': [r'\.alert', r'\.loading', r'\.spinner'],
-        'content': []
-    },
-    'cards.css': {
-        'patterns': [r'\.book-card', r'\.book-header', r'\.book-author', r'\.book-meta', r'\.book-download', r'\.read-toggle', r'\.empty-state', r'\.author-section'],
-        'content': []
-    },
-    'modals.css': {
-        'patterns': [r'\.modal', r'\.modal-content', r'\.modal-header', r'\.modal-body', r'\.modal-footer'],
-        'content': []
-    },
-    'buttons.css': {
-        'patterns': [r'\.btn-', r'\.fab-upload'],
-        'content': []
-    },
-    'forms.css': {
-        'patterns': [r'\.form-group', r'\.field-hint', r'\.file-info', r'\.progress-', r'\.detail'],
-        'content': []
-    }
+    'base.css': [
+        r'^\*\s*{',
+        r'^body\s*{',
+        r'^html\s*{',
+        r'^:root\s*{'
+    ],
+    'header.css': [
+        r'\.header\b',
+        r'\.auth-widget\b',
+        r'\.login-',
+        r'\.user-avatar\b',
+        r'\.user-menu\b',
+        r'\.menu-',
+        r'\.avatar-'
+    ],
+    'layout.css': [
+        r'\.container\b',
+        r'\.controls-row\b',
+        r'\.filter-controls\b',
+        r'\.stacked-controls\b'
+    ],
+    'alerts.css': [
+        r'\.alert\b',
+        r'\.loading\b',
+        r'\.spinner\b'
+    ],
+    'cards.css': [
+        r'\.books-grid\b',
+        r'\.book-card\b',
+        r'\.book-header\b',
+        r'\.book-author\b',
+        r'\.book-meta\b',
+        r'\.book-download\b',
+        r'\.book-series\b',
+        r'\.read-toggle\b',
+        r'\.empty-state\b',
+        r'\.author-section\b',
+        r'\.author-header\b',
+        r'\.author-books\b'
+    ],
+    'modals.css': [
+        r'\.modal\b',
+        r'\.close\b'
+    ],
+    'buttons.css': [
+        r'\.btn-',
+        r'\.fab-upload\b',
+        r'\.checkbox-'
+    ],
+    'forms.css': [
+        r'\.form-group\b',
+        r'\.field-hint\b',
+        r'\.file-info\b',
+        r'\.progress-',
+        r'\.detail-',
+        r'\.upload-',
+        r'input\[type=',
+        r'^select\b',
+        r'^textarea\b',
+        r'^label\b'
+    ]
 }
 
-# Parse CSS into sections
-lines = original_css.split('\n')
-current_block = []
-in_block = False
-brace_count = 0
+# Initialize content storage
+section_content = {name: [] for name in sections.keys()}
+section_content['uncategorized.css'] = []
 
-for line in lines:
-    # Track brace levels
-    brace_count += line.count('{') - line.count('}')
+# Parse CSS into blocks (handle multi-line blocks properly)
+def extract_css_blocks(css_text):
+    """Extract CSS blocks with their comments"""
+    blocks = []
+    lines = css_text.split('\n')
+    current_block_lines = []
+    in_block = False
+    in_comment = False
+    brace_count = 0
 
-    # Check if this line starts a new CSS block
-    if '{' in line and not in_block:
-        in_block = True
-        current_block = [line]
-    elif in_block:
-        current_block.append(line)
-        if brace_count == 0:
-            # End of block
-            block_text = '\n'.join(current_block)
-            # Determine which section this belongs to
-            for section_name, section_info in sections.items():
-                for pattern in section_info['patterns']:
-                    if re.search(pattern, block_text, re.MULTILINE):
-                        section_info['content'].append(block_text)
-                        break
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # Track multi-line comments
+        if '/*' in line and '*/' not in line:
+            in_comment = True
+        if '*/' in line:
+            in_comment = False
+
+        # Skip empty lines between blocks
+        if not line.strip() and not in_block and not current_block_lines:
+            i += 1
+            continue
+
+        # Start collecting lines for a block (including preceding comments)
+        if line.strip() and (line.strip().startswith('/*') or in_comment or in_block or brace_count > 0):
+            current_block_lines.append(line)
+        elif line.strip() and not in_block:
+            # This is a selector line
+            current_block_lines.append(line)
+            in_block = True
+        elif current_block_lines:
+            current_block_lines.append(line)
+
+        # Track braces
+        brace_count += line.count('{') - line.count('}')
+
+        # End of block
+        if in_block and brace_count == 0 and '{' in '\n'.join(current_block_lines):
+            blocks.append('\n'.join(current_block_lines))
+            current_block_lines = []
             in_block = False
-            current_block = []
-    else:
-        # Comment or empty line - could be a section header
-        if line.strip().startswith('/*') or not line.strip():
-            # Add to all sections that have content
-            for section_info in sections.values():
-                if len(section_info['content']) > 0:
-                    section_info['content'].append(line)
+
+        i += 1
+
+    return blocks
+
+# Extract all blocks
+css_blocks = extract_css_blocks(original_css)
+
+print(f"✓ Extracted {len(css_blocks)} CSS blocks")
+
+# Categorize each block
+for block in css_blocks:
+    categorized = False
+
+    # Try to match against patterns
+    for section_name, patterns in sections.items():
+        for pattern in patterns:
+            if re.search(pattern, block, re.MULTILINE):
+                section_content[section_name].append(block)
+                categorized = True
+                break
+        if categorized:
+            break
+
+    # If no match, add to uncategorized
+    if not categorized:
+        section_content['uncategorized.css'].append(block)
+
+# Create css directory
+os.makedirs(CSS_DIR, exist_ok=True)
 
 # Write each section to its own file
-for section_name, section_info in sections.items():
-    if section_info['content']:
+files_created = []
+for section_name, blocks in section_content.items():
+    if blocks:
         section_path = os.path.join(CSS_DIR, section_name)
         with open(section_path, 'w') as f:
-            f.write('\n'.join(section_info['content']))
-        print(f"✓ Created {section_name} ({len(section_info['content'])} blocks)")
+            f.write('\n\n'.join(blocks))
+        print(f"✓ Created {section_name} ({len(blocks)} blocks)")
+        files_created.append(section_name)
 
-# Create main.css that imports all modules
-main_css_content = '''/* Books Library Styles - Modular Architecture */
+# Create main.css that imports all modules in the right order
+import_order = ['base.css', 'header.css', 'layout.css', 'alerts.css',
+                'cards.css', 'modals.css', 'buttons.css', 'forms.css', 'uncategorized.css']
 
-/* Load component stylesheets in order */
-@import 'base.css';
-@import 'header.css';
-@import 'layout.css';
-@import 'alerts.css';
-@import 'cards.css';
-@import 'modals.css';
-@import 'buttons.css';
-@import 'forms.css';
-'''
+main_css_content = '/* Books Library Styles - Modular Architecture */\n\n'
+for filename in import_order:
+    if filename in files_created:
+        main_css_content += f"@import '{filename}';\n"
 
 with open(os.path.join(CSS_DIR, "main.css"), 'w') as f:
     f.write(main_css_content)
@@ -129,5 +198,5 @@ with open(os.path.join(FRONTEND_DIR, "styles.css"), 'w') as f:
 
 print("✓ Created new minimal styles.css")
 print(f"\n✅ CSS refactoring complete!")
-print(f"  Original: 851 lines → Now split into 9 files")
+print(f"  Original: 851 lines → Now split into {len(files_created)} files")
 print(f"  Backup saved as: styles.css.backup")
