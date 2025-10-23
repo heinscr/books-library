@@ -181,14 +181,47 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 
 ```
 .
-├── gateway_backend/          # Lambda function code
-│   ├── handler.py           # API handlers (list, get, update, S3 trigger)
-│   └── __init__.py
-├── frontend/                # Web interface
-│   ├── index.html          # Main HTML
-│   ├── app.js              # JavaScript logic with Cognito auth
-│   ├── styles.css          # Styling
-│   └── config.js.example   # Frontend configuration template
+├── gateway_backend/          # Lambda function code (modular architecture)
+│   ├── handler.py           # Main entry point for Lambda functions
+│   ├── config.py            # Centralized configuration
+│   ├── handlers/            # Modular request handlers
+│   │   ├── admin_handlers.py    # Admin operations (upload, delete)
+│   │   ├── book_handlers.py     # Book operations (list, get, update)
+│   │   └── s3_handlers.py       # S3 trigger processing
+│   ├── utils/               # Shared utilities
+│   │   ├── auth.py              # Authentication & authorization
+│   │   ├── dynamodb.py          # DynamoDB operations
+│   │   ├── response.py          # HTTP response formatting
+│   │   └── validation.py        # Input validation & sanitization
+│   ├── requirements.txt     # Python dependencies for Lambda
+│   └── README.md            # Backend documentation
+├── frontend/                # Web interface (modular architecture)
+│   ├── index.html          # Main HTML structure
+│   ├── app.js              # Application initialization
+│   ├── config.js.example   # Frontend configuration template
+│   ├── css/                # Modular CSS components
+│   │   ├── main.css            # CSS entry point (imports all modules)
+│   │   ├── base.css            # Base styles & variables
+│   │   ├── layout.css          # Layout & grid system
+│   │   ├── header.css          # Header & navigation
+│   │   ├── cards.css           # Book card components
+│   │   ├── modals.css          # Modal dialogs
+│   │   ├── forms.css           # Form inputs & controls
+│   │   ├── buttons.css         # Button styles
+│   │   ├── alerts.css          # Notifications & toasts
+│   │   └── uncategorized.css   # Misc styles
+│   ├── js/                 # Modular JavaScript
+│   │   ├── auth.js             # Cognito authentication
+│   │   ├── api.js              # API request handling
+│   │   ├── bookCard.js         # Book card rendering
+│   │   ├── bookDetails.js      # Book details modal
+│   │   ├── bookRenderer.js     # Book list rendering & sorting
+│   │   ├── filters.js          # Filter controls
+│   │   ├── upload.js           # File upload with Google Books API
+│   │   ├── ui.js               # UI utilities & toasts
+│   │   └── utils.js            # Helper functions
+│   ├── styles.css          # Legacy CSS (imports css/main.css)
+│   └── favicon.svg         # Site icon
 ├── terraform/              # Infrastructure as Code
 │   ├── main.tf            # Core infrastructure definitions
 │   ├── variables.tf       # Input variables
@@ -197,13 +230,21 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   ├── README.md          # Terraform documentation
 │   ├── QUICK_REFERENCE.md # Command cheat sheet
 │   └── SUMMARY.md         # Quick overview
-├── scripts/                # Deployment helper scripts
+├── scripts/                # Deployment & utility scripts
 │   ├── configure-s3-trigger.sh  # Set up S3 Lambda trigger
 │   ├── migrate-books.py         # Migrate S3 books to DynamoDB
+│   ├── migrate-bucket.py        # S3 bucket migration tool
 │   ├── populate-authors.py      # Populate Authors table
+│   ├── refactor_frontend.py     # Frontend refactoring tool
+│   ├── refactor_css.py          # CSS refactoring tool
+│   ├── lint.sh                  # Code quality checks
 │   └── README.md                # Scripts documentation
-├── tests/                  # Unit tests
-│   └── test_handler.py    # Comprehensive test suite (79 tests, 95% coverage)
+├── tests/                  # Test suite
+│   ├── test_handler.py    # Backend unit tests (58 tests, 95% coverage)
+│   └── e2e/               # End-to-end frontend tests
+│       ├── test_book_grid.py    # Playwright browser tests
+│       ├── conftest.py          # Test fixtures
+│       └── README.md            # E2E test documentation
 ├── docs/                  # Documentation
 │   ├── TERRAFORM_SETUP.md      # Complete Terraform workflow guide
 │   ├── CONFIGURATION.md        # Configuration reference
@@ -218,7 +259,12 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 ├── template.yaml           # SAM CloudFormation template
 ├── samconfig.toml.example # SAM deployment config template
 ├── Makefile               # Automated deployment commands
-├── Pipfile                # Python dependencies
+├── Pipfile                # Python dependencies (local dev)
+├── Pipfile.lock           # Locked dependency versions
+├── pyproject.toml         # Python project config (Black, Ruff, MyPy)
+├── pytest.ini             # Pytest configuration
+├── playwright.ini         # Playwright test configuration
+├── LICENSE                # MIT License
 └── README.md              # This file
 ```
 
