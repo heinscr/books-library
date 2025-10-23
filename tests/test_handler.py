@@ -2,7 +2,7 @@ import json
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from gateway_backend import handler
+from gateway_backend import config, handler
 
 
 def create_mock_event(user_id="test-user-123", is_admin=False, path_params=None, body=None):
@@ -82,8 +82,8 @@ def test_list_handler_returns_books_list():
     event = create_mock_event(user_id="test-user-123", is_admin=False)
 
     # Patch both tables
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.list_handler(event, None)
 
     # Verify response
@@ -124,8 +124,8 @@ def test_list_handler_empty_table():
 
     event = create_mock_event()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.list_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -173,8 +173,8 @@ def test_list_handler_pagination():
 
     event = create_mock_event()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.list_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -193,8 +193,8 @@ def test_list_handler_dynamodb_error():
 
     event = create_mock_event()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.list_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -238,9 +238,9 @@ def test_get_book_handler_success():
     mock_user_books_table.get_item.return_value = mock_user_books_item
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_url),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "generate_presigned_url", return_value=mock_url),
     ):
         resp = handler.get_book_handler(event, None)
 
@@ -279,8 +279,8 @@ def test_get_book_handler_not_found():
     mock_user_books_table = Mock()
     mock_user_books_table.get_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.get_book_handler(event, None)
 
     assert resp["statusCode"] == 404
@@ -309,8 +309,8 @@ def test_get_book_handler_missing_s3_url():
     mock_user_books_table = Mock()
     mock_user_books_table.get_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.get_book_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -344,8 +344,8 @@ def test_update_book_handler_success():
     
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -412,8 +412,8 @@ def test_update_book_handler_not_found():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 404
@@ -508,8 +508,8 @@ def test_update_book_handler_with_series_fields():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -577,8 +577,8 @@ def test_update_book_handler_clear_series_order():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -614,8 +614,8 @@ def test_list_handler_returns_books_with_series():
 
     event = create_mock_event()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.list_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -643,7 +643,7 @@ def test_s3_trigger_handler_success():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # Verify put_item was called
@@ -677,7 +677,7 @@ def test_s3_trigger_handler_with_author():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # Verify put_item was called
@@ -712,7 +712,7 @@ def test_s3_trigger_handler_multiple_records():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # Verify put_item was called twice
@@ -736,7 +736,7 @@ def test_s3_trigger_handler_skips_non_zip():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # Verify put_item WAS called (handler processes all files)
@@ -761,7 +761,7 @@ def test_s3_trigger_handler_skips_folder():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # Verify put_item WAS called (handler currently processes all S3 events)
@@ -785,7 +785,7 @@ def test_upload_handler_success():
 
     mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz"
 
-    with patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
+    with patch.object(config.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
         resp = handler.upload_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -868,7 +868,7 @@ def test_upload_handler_without_author():
 
     mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz"
 
-    with patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
+    with patch.object(config.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
         resp = handler.upload_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -890,7 +890,7 @@ def test_set_upload_metadata_handler_success():
     mock_table = Mock()
     mock_table.update_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.set_upload_metadata_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -929,7 +929,7 @@ def test_set_upload_metadata_handler_book_not_found():
         {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
     )
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.set_upload_metadata_handler(event, None)
 
     assert resp["statusCode"] == 404
@@ -988,7 +988,7 @@ def test_set_upload_metadata_handler_with_series_fields():
     mock_table = Mock()
     mock_table.update_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.set_upload_metadata_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -1059,7 +1059,7 @@ def test_set_upload_metadata_handler_partial_fields():
     mock_table = Mock()
     mock_table.update_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.set_upload_metadata_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -1116,9 +1116,9 @@ def test_delete_book_handler_success():
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "delete_object", mock_s3_delete),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
 
@@ -1172,7 +1172,7 @@ def test_delete_book_handler_book_not_found():
     mock_table = Mock()
     mock_table.get_item.return_value = {}  # No 'Item' key
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.delete_book_handler(event, None)
 
     assert resp["statusCode"] == 404
@@ -1204,9 +1204,9 @@ def test_delete_book_handler_s3_error_continues():
     mock_s3_delete = Mock(side_effect=ClientError({"Error": {"Code": "NoSuchKey"}}, "DeleteObject"))  # type: ignore[arg-type]
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "delete_object", mock_s3_delete),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
 
@@ -1238,9 +1238,9 @@ def test_delete_book_handler_no_s3_url():
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "delete_object", mock_s3_delete),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
 
@@ -1280,9 +1280,9 @@ def test_delete_book_handler_dynamodb_not_found_on_delete():
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "delete_object", mock_s3_delete),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
 
@@ -1316,9 +1316,9 @@ def test_get_book_handler_with_apostrophe_in_id():
     mock_user_books_table.get_item.return_value = {}
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_url),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "generate_presigned_url", return_value=mock_url),
     ):
         resp = handler.get_book_handler(event, None)
 
@@ -1354,8 +1354,8 @@ def test_update_book_handler_with_apostrophe_in_id():
     mock_user_books_table = Mock()
     mock_user_books_table.put_item.return_value = {}
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -1394,8 +1394,8 @@ def test_update_book_handler_with_quotes_in_id():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
@@ -1425,9 +1425,9 @@ def test_delete_book_handler_with_apostrophe_in_id():
     mock_s3_delete = Mock()
 
     with (
-        patch.object(handler, "books_table", mock_books_table),
-        patch.object(handler, "user_books_table", mock_user_books_table),
-        patch.object(handler.s3_client, "delete_object", mock_s3_delete),
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "delete_object", mock_s3_delete),
     ):
         resp = handler.delete_book_handler(event, None)
 
@@ -1464,7 +1464,7 @@ def test_s3_trigger_handler_with_special_characters():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         handler.s3_trigger_handler(event, None)
 
     # Verify put_item was called
@@ -1564,8 +1564,8 @@ def test_get_book_handler_dynamodb_error():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.get_book_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -1599,9 +1599,9 @@ def test_get_book_handler_user_books_error():
 
     mock_presigned_url = "https://s3.amazonaws.com/bucket/books/test-book.zip?signed=true"
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table), \
-         patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table), \
+         patch.object(config.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
         resp = handler.get_book_handler(event, None)
 
     # Should succeed with read status defaulting to False
@@ -1633,9 +1633,9 @@ def test_get_book_handler_s3_presigned_url_error():
     mock_s3_client = Mock()
     mock_s3_client.generate_presigned_url.side_effect = Exception("S3 connection error")
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table), \
-         patch.object(handler, "s3_client", mock_s3_client):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table), \
+         patch.object(config, "s3_client", mock_s3_client):
         resp = handler.get_book_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -1677,8 +1677,8 @@ def test_update_book_handler_books_table_error():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -1705,8 +1705,8 @@ def test_update_book_handler_user_books_table_error():
         "PutItem"
     )  # type: ignore[arg-type]
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     # Handler logs error but continues (returns success with only read status updated)
@@ -1733,7 +1733,7 @@ def test_s3_trigger_handler_invalid_s3_url():
 
     mock_table = Mock()
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # Should handle gracefully - folder is skipped
@@ -1766,7 +1766,7 @@ def test_s3_trigger_handler_dynamodb_error():
         "PutItem"
     )  # type: ignore[arg-type]
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.s3_trigger_handler(event, None)
 
     # S3 trigger returns 200 even on errors to prevent retries
@@ -1798,7 +1798,7 @@ def test_upload_handler_file_size_validation():
 
     mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/test.zip?signed=true"
 
-    with patch.object(handler.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
+    with patch.object(config.s3_client, "generate_presigned_url", return_value=mock_presigned_url):
         resp = handler.upload_handler(event, None)
 
     # Handler accepts zero-size files (validation is minimal)
@@ -1836,7 +1836,7 @@ def test_set_upload_metadata_handler_dynamodb_error():
         "UpdateItem"
     )  # type: ignore[arg-type]
 
-    with patch.object(handler, "books_table", mock_table):
+    with patch.object(config, "books_table", mock_table):
         resp = handler.set_upload_metadata_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -1882,9 +1882,9 @@ def test_delete_book_handler_user_books_scan_error():
 
     mock_s3_delete = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table), \
-         patch.object(handler.s3_client, "delete_object", mock_s3_delete):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table), \
+         patch.object(config.s3_client, "delete_object", mock_s3_delete):
         resp = handler.delete_book_handler(event, None)
 
     # Should still succeed - UserBooks errors are logged but not fatal
@@ -1901,8 +1901,8 @@ def test_delete_book_handler_general_error():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.delete_book_handler(event, None)
 
     assert resp["statusCode"] == 500
@@ -1930,8 +1930,8 @@ def test_update_book_handler_with_name_field():
 
     mock_user_books_table = Mock()
 
-    with patch.object(handler, "books_table", mock_books_table), \
-         patch.object(handler, "user_books_table", mock_user_books_table):
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
         resp = handler.update_book_handler(event, None)
 
     assert resp["statusCode"] == 200
