@@ -163,7 +163,36 @@
 
     <!-- Load configuration -->
     <script src="config.js"></script>
-    <!-- Main application -->
-    <script src="app.js?v=2"></script>
+
+    <!-- Load modular JavaScript (order matters for dependencies) -->
+    <!-- 1. Utilities (no dependencies) -->
+    <script src="js/utils.js?v=3"></script>
+
+    <!-- 2. UI utilities (depends on utils) -->
+    <script src="js/ui.js?v=3"></script>
+
+    <!-- 3. Authentication (depends on ui) -->
+    <script src="js/auth.js?v=3"></script>
+
+    <!-- 4. API layer (depends on auth, ui) -->
+    <script src="js/api.js?v=3"></script>
+
+    <!-- 5. Book card component (depends on utils, ui, api) -->
+    <script src="js/bookCard.js?v=3"></script>
+
+    <!-- 6. Book rendering (depends on bookCard, utils) -->
+    <script src="js/bookRenderer.js?v=3"></script>
+
+    <!-- 7. Filters (depends on bookRenderer) -->
+    <script src="js/filters.js?v=3"></script>
+
+    <!-- 8. Upload module (depends on auth, api, ui, utils) -->
+    <script src="js/upload.js?v=3"></script>
+
+    <!-- 9. Book details (depends on auth, api, ui, filters) -->
+    <script src="js/bookDetails.js?v=3"></script>
+
+    <!-- 10. Main application orchestrator (depends on all modules) -->
+    <script src="app.js?v=3"></script>
 </body>
 </html>
