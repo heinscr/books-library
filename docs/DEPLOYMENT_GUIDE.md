@@ -90,12 +90,23 @@ This will:
 - Skip books that already exist in DynamoDB
 
 ### 5. Deploy Updated Frontend
-```bash
-# Upload updated JavaScript
-aws s3 cp frontend/app.js s3://YOUR_BUCKET/books-app/
 
-# Upload updated CSS
-aws s3 cp frontend/styles.css s3://YOUR_BUCKET/books-app/
+**Option A: Using Makefile (recommended)**
+```bash
+# With Terraform installed
+make update-frontend AWS_PROFILE=your-profile
+
+# Without Terraform
+make update-frontend AWS_PROFILE=your-profile FRONTEND_BUCKET=your-bucket
+```
+
+**Option B: Manual deployment**
+```bash
+# Upload frontend files
+aws s3 sync frontend/ s3://YOUR_BUCKET/books-app/ --profile your-profile
+
+# Upload API docs (optional)
+aws s3 sync docs/ s3://YOUR_BUCKET/books-app/api-docs/ --exclude "*.md" --profile your-profile
 
 # Get CloudFront distribution ID
 aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[?DomainName=='YOUR_BUCKET.s3.amazonaws.com']].Id" --output text
@@ -103,7 +114,7 @@ aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items
 # Invalidate CloudFront cache (replace <DIST_ID> with actual ID)
 aws cloudfront create-invalidation \
     --distribution-id <DIST_ID> \
-    --paths "/app.js" "/styles.css"
+    --paths "/books-app/*"
 ```
 
 ### 6. Verify Deployment
@@ -166,11 +177,10 @@ If issues occur, you can rollback:
 git checkout HEAD~1 frontend/app.js frontend/styles.css
 
 # Deploy old version
-aws s3 cp frontend/app.js s3://YOUR_BUCKET/books-app/
-aws s3 cp frontend/styles.css s3://YOUR_BUCKET/books-app/
+aws s3 sync frontend/ s3://YOUR_BUCKET/books-app/ --profile your-profile
 
 # Invalidate cache
-aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/app.js" "/styles.css"
+aws cloudfront create-invalidation --distribution-id <DIST_ID> --paths "/books-app/*" --profile your-profile
 ```
 
 ### Rollback Entire Stack

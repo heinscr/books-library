@@ -83,7 +83,8 @@ configure-s3-trigger: ## Configure S3 trigger for Lambda
 deploy-frontend: ## Deploy frontend to S3
 	@echo "$(YELLOW)Deploying frontend to S3...$(NC)"
 	@FRONTEND_BUCKET=$$(cd terraform && terraform output -raw frontend_bucket_name) && \
-	aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/ --profile $(AWS_PROFILE)
+	aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/ --profile $(AWS_PROFILE) && \
+	aws s3 sync docs/ s3://$$FRONTEND_BUCKET/api-docs/ --exclude "*.md" --profile $(AWS_PROFILE)
 	@echo "$(GREEN)✓ Frontend deployment complete$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Frontend URL:$(NC)"
@@ -158,8 +159,19 @@ clean: ## Clean build artifacts
 
 update-frontend: ## Quick update frontend only
 	@echo "$(YELLOW)Updating frontend...$(NC)"
-	@FRONTEND_BUCKET=$$(cd terraform && terraform output -raw frontend_bucket_name) && \
-	aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/ --profile $(AWS_PROFILE)
+	@if [ -d "terraform/.terraform" ]; then \
+		FRONTEND_BUCKET=$$(cd terraform && terraform output -raw frontend_bucket_name) && \
+		aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/ --profile $(AWS_PROFILE) && \
+		aws s3 sync docs/ s3://$$FRONTEND_BUCKET/api-docs/ --exclude "*.md" --profile $(AWS_PROFILE); \
+	else \
+		echo "$(YELLOW)Terraform not initialized. Use: make update-frontend FRONTEND_BUCKET=your-bucket$(NC)"; \
+		if [ -z "$$FRONTEND_BUCKET" ]; then \
+			echo "$(YELLOW)Error: FRONTEND_BUCKET not set$(NC)"; \
+			exit 1; \
+		fi; \
+		aws s3 sync frontend/ s3://$$FRONTEND_BUCKET/books-app/ --profile $(AWS_PROFILE) && \
+		aws s3 sync docs/ s3://$$FRONTEND_BUCKET/books-app/api-docs/ --exclude "*.md" --profile $(AWS_PROFILE); \
+	fi
 	@echo "$(GREEN)✓ Frontend updated$(NC)"
 
 update-backend: ## Quick update backend only

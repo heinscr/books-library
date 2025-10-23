@@ -632,13 +632,28 @@ python -m pytest tests/ -v
 ```
 
 ### Deploy Updates
+
+**With Terraform installed:**
 ```bash
 # Backend
-sam build && sam deploy
+make update-backend AWS_PROFILE=your-profile
 
-# Frontend
-aws s3 sync frontend/ s3://YOUR_BUCKET/books-app/
-aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*"
+# Frontend (includes API docs)
+make update-frontend AWS_PROFILE=your-profile
+```
+
+**Without Terraform:**
+```bash
+# Backend
+sam build && sam deploy --profile your-profile
+
+# Frontend and API docs
+make update-frontend AWS_PROFILE=your-profile FRONTEND_BUCKET=your-bucket
+
+# Or manually
+aws s3 sync frontend/ s3://YOUR_BUCKET/books-app/ --profile your-profile
+aws s3 sync docs/ s3://YOUR_BUCKET/books-app/api-docs/ --exclude "*.md" --profile your-profile
+aws cloudfront create-invalidation --distribution-id YOUR_ID --paths "/*" --profile your-profile
 ```
 
 ## 📊 AWS Resources Used

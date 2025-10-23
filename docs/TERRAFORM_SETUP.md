@@ -173,11 +173,19 @@ const API_URL = '<API Gateway URL from sam deploy>/books';
 ### Step 3.2: Deploy Frontend to S3
 
 ```bash
+# Option A: Using Makefile (recommended, from project root)
+cd ..
+make deploy-frontend AWS_PROFILE=craig-dev
+
+# Option B: Manual deployment
 # Get frontend bucket name from Terraform
 FRONTEND_BUCKET=$(cd ../terraform && terraform output -raw frontend_bucket_name)
 
-# Upload all frontend files
+# Upload frontend files
 aws s3 sync . s3://$FRONTEND_BUCKET/ --profile craig-dev
+
+# Upload API docs
+aws s3 sync ../docs/ s3://$FRONTEND_BUCKET/api-docs/ --exclude "*.md" --profile craig-dev
 
 # Verify
 aws s3 ls s3://$FRONTEND_BUCKET/ --profile craig-dev
@@ -414,8 +422,14 @@ sam deploy --profile craig-dev
 ### Update Frontend
 
 ```bash
+# Using Makefile (from project root)
+make update-frontend AWS_PROFILE=craig-dev
+
+# Or manually
 cd frontend
 aws s3 sync . s3://$FRONTEND_BUCKET/ --profile craig-dev
+cd ..
+aws s3 sync docs/ s3://$FRONTEND_BUCKET/api-docs/ --exclude "*.md" --profile craig-dev
 ```
 
 ## Destroying Everything
