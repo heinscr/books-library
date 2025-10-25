@@ -13,13 +13,18 @@
     gap: 20px;
 }
 
-/* Controls row (upload + filter on same line) */
+/* Controls row (search and icon filters) */
 .controls-row {
     display: flex;
-    justify-content: space-between; /* Search on left, filters on right */
+    justify-content: flex-end;
     align-items: flex-start;
     margin-bottom: 30px;
-    gap: 20px;
+}
+
+.search-and-filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .filter-controls {

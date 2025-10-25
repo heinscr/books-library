@@ -4,9 +4,31 @@
  * Note: allBooks is defined globally in app.js
  */
 
+// Filter state
+let filterState = {
+    hideReadBooks: false,
+    groupByAuthor: false
+};
+
+function toggleFilter(filterName) {
+    filterState[filterName] = !filterState[filterName];
+
+    // Update button active state
+    const btn = document.getElementById(filterName + 'Btn');
+    if (btn) {
+        if (filterState[filterName]) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+
+    applyFilters();
+}
+
 function applyFilters() {
-    const hideRead = document.getElementById('hideReadBooks').checked;
-    const groupByAuthor = document.getElementById('groupByAuthor').checked;
+    const hideRead = filterState.hideReadBooks;
+    const groupByAuthor = filterState.groupByAuthor;
     const searchInput = document.getElementById('searchInput');
     const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
 

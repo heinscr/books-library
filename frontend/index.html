@@ -43,20 +43,18 @@
 
     <!-- Main content -->
     <div class="container">
-        <!-- Controls row (filter only) -->
+        <!-- Controls row (search and icon filters) -->
         <div id="controlsRow" class="controls-row" style="display: none;">
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="🔍 Search books, authors, or series..." oninput="applyFilters()">
-            </div>
-            <div class="filter-controls">
-                <label class="filter-toggle">
-                    <input type="checkbox" id="hideReadBooks" onchange="applyFilters()">
-                    <span>Hide read books</span>
-                </label>
-                <label class="filter-toggle">
-                    <input type="checkbox" id="groupByAuthor" onchange="applyFilters()">
-                    <span>Group by author</span>
-                </label>
+            <div class="search-and-filters">
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="🔍 Search books, authors, or series..." oninput="applyFilters()">
+                </div>
+                <button class="filter-icon-btn" id="hideReadBooksBtn" onclick="toggleFilter('hideReadBooks')" title="Hide read books">
+                    👁️
+                </button>
+                <button class="filter-icon-btn" id="groupByAuthorBtn" onclick="toggleFilter('groupByAuthor')" title="Group by author">
+                    📚
+                </button>
             </div>
         </div>
         

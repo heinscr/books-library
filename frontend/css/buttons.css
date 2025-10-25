@@ -89,3 +89,37 @@
 .fab-upload svg {
     transition: transform 0.3s ease;
 }
+
+/* Filter icon buttons */
+.filter-icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+    background: rgba(248, 249, 250, 0.95);
+    border: 2px solid #d4a574;
+    border-radius: 8px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+.filter-icon-btn:hover {
+    border-color: #ffd700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.filter-icon-btn.active {
+    background: #d4a574;
+    border-color: #c4956a;
+    transform: scale(0.95);
+}
+
+.filter-icon-btn.active:hover {
+    background: #c4956a;
+    transform: scale(0.95) translateY(-2px);
+}
