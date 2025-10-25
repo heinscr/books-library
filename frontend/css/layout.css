@@ -25,6 +25,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: nowrap;
 }
 
 .filter-controls {
@@ -42,14 +43,28 @@
         width: 48px;
         height: 48px;
     }
-    
+
     .fab-upload svg {
         width: 20px;
         height: 20px;
     }
-    
+
     .filter-controls {
         flex-direction: column; /* Stack vertically on mobile */
         gap: 12px;
+    }
+
+    .search-and-filters {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .search-container {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .search-container input[type="text"] {
+        width: 100%;
     }
 }
