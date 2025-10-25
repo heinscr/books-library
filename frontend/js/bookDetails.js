@@ -162,12 +162,8 @@ async function saveBookDetails() {
         // Update the book in the local allBooks array
         const bookIndex = allBooks.findIndex(b => b.id === currentEditingBook.id);
         if (bookIndex !== -1) {
-            allBooks[bookIndex] = { 
-                ...allBooks[bookIndex], 
-                author: updatedBook.author,
-                series_name: updatedBook.series_name,
-                series_order: updatedBook.series_order
-            };
+            // Replace with the full updated book object from the server
+            allBooks[bookIndex] = updatedBook;
         }
         
         // Re-render with current filter state preserved

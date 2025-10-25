@@ -26,7 +26,8 @@ Lists all books from DynamoDB with complete metadata.
     "size": 1048576,
     "created": "2025-10-17T12:00:00+00:00",
     "read": false,
-    "s3_url": "s3://bucket/books/Book Title.zip"
+    "s3_url": "s3://bucket/books/Book Title.zip",
+    "coverImageUrl": "https://books.google.com/books/content?id=..."
   }
 ]
 ```
@@ -47,7 +48,8 @@ Gets book metadata from DynamoDB and generates a presigned URL for downloading.
   "created": "2025-10-17T12:00:00+00:00",
   "read": false,
   "downloadUrl": "https://s3.amazonaws.com/...",
-  "expiresIn": 3600
+  "expiresIn": 3600,
+  "coverImageUrl": "https://books.google.com/books/content?id=..."
 }
 ```
 
@@ -155,6 +157,51 @@ S3 event trigger that auto-populates DynamoDB when books are uploaded. **Now rea
 - Falls back to filename parsing if tags not present
 - URL-decodes filenames (handles spaces and special characters)
 - Gracefully handles tag read errors
+- **Automatically fetches book covers** from Google Books API on upload
+- Stores cover URL in DynamoDB `coverImageUrl` field
+
+## Utility Modules
+
+### `utils/cover.py`
+Handles automatic book cover fetching from Google Books API.
+
+**Functions:**
+- `fetch_cover_url(title, author=None)` - Queries Google Books API and returns cover image URL
+  - Prefers medium quality, falls back to thumbnail or smallThumbnail
+  - Upgrades HTTP to HTTPS for security
+  - Returns None if no cover found
+  - Includes 3-second timeout and error handling
+
+- `update_cover_on_author_change(current_author, new_author, title, metadata_fields)` - Updates cover URL when author changes
+  - Compares authors and fetches new cover if different
+  - Sets `coverImageUrl` to None if no cover found (triggers removal in DynamoDB)
+  - Modifies `metadata_fields` dict in place
+
+**Test Coverage:** 100%
+
+### `utils/dynamodb.py`
+DynamoDB update expression utilities.
+
+**Functions:**
+- `build_update_expression(fields, allow_remove=False)` - Builds DynamoDB update expressions
+  - Handles None/empty values as REMOVE operations when `allow_remove=True`
+  - Returns (expression, values, names) tuple
+
+- `build_update_params(key, fields, allow_remove=False, condition_expression=None, return_values="ALL_NEW")` - Complete update_item params
+  - Handles empty ExpressionAttributeValues (for REMOVE-only updates)
+  - Conditionally includes condition expressions
+  - Consistent parameter structure across handlers
+
+**Test Coverage:** 100%
+
+### `utils/response.py`
+API response formatting and book serialization.
+
+**Key Function:**
+- `serialize_book_response(book_item, user_read_status={})` - Converts DynamoDB items to API responses
+  - Includes `coverImageUrl` field when present
+  - Handles Decimal conversion
+  - Merges per-user read status
 
 ## Environment Variables
 

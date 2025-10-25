@@ -18,14 +18,16 @@ try:
     # Lambda deployment
     import config
     from utils.auth import is_admin
-    from utils.dynamodb import build_update_expression
+    from utils.cover import fetch_cover_url as _fetch_cover_url_util, update_cover_on_author_change
+    from utils.dynamodb import build_update_params
     from utils.response import api_response, error_response
     from utils.validation import parse_json_body, validate_series_order, validate_string_field
 except ImportError:
     # Local development
     import gateway_backend.config as config
     from gateway_backend.utils.auth import is_admin
-    from gateway_backend.utils.dynamodb import build_update_expression
+    from gateway_backend.utils.cover import fetch_cover_url as _fetch_cover_url_util, update_cover_on_author_change
+    from gateway_backend.utils.dynamodb import build_update_params
     from gateway_backend.utils.response import api_response, error_response
     from gateway_backend.utils.validation import parse_json_body, validate_series_order, validate_string_field
 
@@ -82,6 +84,10 @@ def _extract_book_metadata(filename: str) -> dict[str, str]:
         metadata["name"] = filename
 
     return metadata
+
+
+# Alias the utility function for backward compatibility
+_fetch_cover_url = _fetch_cover_url_util
 
 
 def s3_trigger_handler(event, context):
@@ -158,6 +164,20 @@ def s3_trigger_handler(event, context):
             except ClientError as e:
                 logger.warning(f"Error reading S3 object tags: {str(e)}")
                 # Continue without tags - we already have filename-based metadata
+
+            # Fetch cover image URL from Google Books API
+            title = item.get("name", "")
+            author = item.get("author")
+            try:
+                cover_url = _fetch_cover_url(title, author)
+                if cover_url:
+                    item["coverImageUrl"] = cover_url
+                    logger.info(f"Found cover for '{title}': {cover_url[:60]}...")
+                else:
+                    logger.info(f"No cover found for '{title}'")
+            except Exception as e:
+                logger.warning(f"Error fetching cover for '{title}': {str(e)}")
+                # Continue without cover URL
 
             # Put item in DynamoDB
             try:
@@ -257,19 +277,38 @@ def set_upload_metadata_handler(event, context):
 
         logger.info(f"Setting metadata for book: {book_id}")
 
+        # First, get the current book record to check if author is changing
+        try:
+            get_response = config.books_table.get_item(Key={"id": book_id})
+            if "Item" not in get_response:
+                logger.warning(f"Book not found: {book_id}")
+                return error_response(
+                    404, "Not Found", f"Book with id {book_id} not found"
+                )
+
+            current_book = get_response["Item"]
+            current_author = current_book.get("author", "")
+            title = current_book.get("name", book_id)
+
+            # Update cover if author is changing
+            if author:
+                update_cover_on_author_change(current_author, author, title, metadata_fields)
+
+        except ClientError as e:
+            logger.error(f"Error getting current book: {str(e)}", exc_info=True)
+            return error_response(500, "Database Error", str(e))
+
         # Update DynamoDB item
-        update_expression, expr_values, expr_names = build_update_expression(
-            metadata_fields
+        update_params = build_update_params(
+            key={"id": book_id},
+            fields=metadata_fields,
+            allow_remove=True,
+            condition_expression="attribute_exists(id)",
+            return_values="NONE"
         )
 
         try:
-            config.books_table.update_item(
-                Key={"id": book_id},
-                UpdateExpression=update_expression,
-                ExpressionAttributeValues=expr_values,
-                ExpressionAttributeNames=expr_names,
-                ConditionExpression="attribute_exists(id)",
-            )
+            config.books_table.update_item(**update_params)
 
             logger.info(f"Successfully updated metadata for book: {book_id}")
 

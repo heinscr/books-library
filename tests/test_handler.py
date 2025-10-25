@@ -1087,6 +1087,13 @@ def test_set_upload_metadata_handler_success():
     event = create_mock_event(is_admin=True, body={"bookId": "Test Book", "author": "New Author"})
 
     mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": "Test Book",
+            "name": "Test Book",
+            "author": "Old Author"
+        }
+    }
     mock_table.update_item.return_value = {}
 
     with patch.object(config, "books_table", mock_table):
@@ -1121,12 +1128,8 @@ def test_set_upload_metadata_handler_book_not_found():
     event = create_mock_event(is_admin=True, body={"bookId": "Nonexistent Book", "author": "Test Author"})
 
     mock_table = Mock()
-    # Simulate ConditionalCheckFailedException
-    from botocore.exceptions import ClientError
-
-    mock_table.update_item.side_effect = ClientError(  # type: ignore[arg-type]
-        {"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem"
-    )
+    # Simulate book not found during get_item
+    mock_table.get_item.return_value = {}
 
     with patch.object(config, "books_table", mock_table):
         resp = handler.set_upload_metadata_handler(event, None)
@@ -1185,6 +1188,13 @@ def test_set_upload_metadata_handler_with_series_fields():
 
     # Mock DynamoDB
     mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": "Test Book",
+            "name": "Test Book",
+            "author": "Different Author"
+        }
+    }
     mock_table.update_item.return_value = {}
 
     with patch.object(config, "books_table", mock_table):
@@ -1256,6 +1266,12 @@ def test_set_upload_metadata_handler_partial_fields():
 
     # Mock DynamoDB
     mock_table = Mock()
+    mock_table.get_item.return_value = {
+        "Item": {
+            "id": "Test Book",
+            "name": "Test Book"
+        }
+    }
     mock_table.update_item.return_value = {}
 
     with patch.object(config, "books_table", mock_table):
@@ -2136,3 +2152,314 @@ def test_update_book_handler_with_name_field():
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])
     assert body["name"] == "New Book Name"
+
+
+# ============================================================================
+# Book Cover URL Tests
+# ============================================================================
+
+
+def test_s3_trigger_handler_with_cover_url():
+    """Test S3 trigger handler fetches cover URL from Google Books API"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Isaac Asimov - Foundation.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    # Mock Google Books API response
+    mock_cover_url = "https://books.google.com/books/content/images/frontcover/12345.jpg"
+
+    mock_table = Mock()
+
+    # Mock the urllib.request.urlopen to simulate Google Books API
+    from gateway_backend.handlers import s3_handlers
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", return_value={"TagSet": []}), \
+         patch.object(s3_handlers, "_fetch_cover_url", return_value=mock_cover_url):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Verify put_item was called with cover URL
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args["Item"]
+
+    assert item["coverImageUrl"] == mock_cover_url
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_no_cover_found():
+    """Test S3 trigger handler continues when no cover is found"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Unknown Book.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    mock_table = Mock()
+
+    # Mock _fetch_cover_url to return None
+    from gateway_backend.handlers import s3_handlers
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", return_value={"TagSet": []}), \
+         patch.object(s3_handlers, "_fetch_cover_url", return_value=None):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Verify put_item was called without cover URL
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args["Item"]
+
+    assert "coverImageUrl" not in item
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_cover_fetch_error():
+    """Test S3 trigger handler continues when cover fetch raises exception"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Test Book.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    mock_table = Mock()
+
+    # Mock _fetch_cover_url to raise exception
+    from gateway_backend.handlers import s3_handlers
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", return_value={"TagSet": []}), \
+         patch.object(s3_handlers, "_fetch_cover_url", side_effect=Exception("API timeout")):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Should still create book record without cover
+    assert mock_table.put_item.called
+    assert resp["statusCode"] == 200
+
+
+def test_set_upload_metadata_handler_author_change_fetches_cover():
+    """Test metadata handler fetches new cover when author changes"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={"bookId": "Foundation", "author": "Isaac Asimov"}
+    )
+
+    # Mock existing book with different author
+    mock_existing_book = {
+        "Item": {
+            "id": "Foundation",
+            "name": "Foundation",
+            "author": "Unknown Author",
+            "coverImageUrl": "https://old-cover.jpg"
+        }
+    }
+
+    mock_new_cover = "https://books.google.com/books/content/images/frontcover/new.jpg"
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_existing_book
+    mock_table.update_item.return_value = {}
+
+    from gateway_backend.utils import cover
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(cover, "fetch_cover_url", return_value=mock_new_cover) as mock_fetch:
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["author"] == "Isaac Asimov"
+    assert body["coverImageUrl"] == mock_new_cover
+
+    # Verify _fetch_cover_url was called with correct params
+    mock_fetch.assert_called_once_with("Foundation", "Isaac Asimov")
+
+    # Verify update_item was called with both author and cover URL
+    call_kwargs = mock_table.update_item.call_args.kwargs
+    assert ":author" in call_kwargs["ExpressionAttributeValues"]
+    assert ":coverImageUrl" in call_kwargs["ExpressionAttributeValues"]
+
+
+def test_set_upload_metadata_handler_author_no_change_no_fetch():
+    """Test metadata handler doesn't fetch cover when author stays the same"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={"bookId": "Foundation", "author": "Isaac Asimov"}
+    )
+
+    # Mock existing book with same author
+    mock_existing_book = {
+        "Item": {
+            "id": "Foundation",
+            "name": "Foundation",
+            "author": "Isaac Asimov",
+            "coverImageUrl": "https://existing-cover.jpg"
+        }
+    }
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_existing_book
+    mock_table.update_item.return_value = {}
+
+    from gateway_backend.utils import cover
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(cover, "fetch_cover_url") as mock_fetch:
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 200
+
+    # Verify fetch_cover_url was NOT called
+    mock_fetch.assert_not_called()
+
+
+def test_set_upload_metadata_handler_author_change_no_cover_found():
+    """Test metadata handler continues when no cover is found for new author"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={"bookId": "Obscure Book", "author": "Unknown Author"}
+    )
+
+    mock_existing_book = {
+        "Item": {
+            "id": "Obscure Book",
+            "name": "Obscure Book",
+            "author": "Different Author"
+        }
+    }
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_existing_book
+    mock_table.update_item.return_value = {}
+
+    from gateway_backend.utils import cover
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(cover, "fetch_cover_url", return_value=None):
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["author"] == "Unknown Author"
+    # coverImageUrl should be None (removed) when cover not found
+    assert body.get("coverImageUrl") is None
+
+
+def test_set_upload_metadata_handler_no_author_no_fetch():
+    """Test metadata handler doesn't fetch cover when no author provided"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={"bookId": "Test Book", "series_name": "Test Series"}
+    )
+
+    mock_existing_book = {
+        "Item": {
+            "id": "Test Book",
+            "name": "Test Book",
+            "author": "Existing Author"
+        }
+    }
+
+    mock_table = Mock()
+    mock_table.get_item.return_value = mock_existing_book
+    mock_table.update_item.return_value = {}
+
+    from gateway_backend.utils import cover
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(cover, "fetch_cover_url") as mock_fetch:
+        resp = handler.set_upload_metadata_handler(event, None)
+
+    assert resp["statusCode"] == 200
+
+    # Verify fetch_cover_url was NOT called (no author in request)
+    mock_fetch.assert_not_called()
+
+
+def test_list_handler_returns_cover_urls():
+    """Test that list handler returns coverImageUrl in book responses"""
+
+    # Mock DynamoDB response with cover URL
+    mock_dynamodb_response = {
+        "Items": [
+            {
+                "id": "foundation.zip",
+                "name": "Foundation",
+                "size": Decimal("1024000"),
+                "created": "2023-06-15T10:30:00Z",
+                "read": False,
+                "s3_url": "s3://test-bucket/books/foundation.zip",
+                "author": "Isaac Asimov",
+                "coverImageUrl": "https://books.google.com/books/content/images/frontcover/12345.jpg",
+            },
+        ]
+    }
+
+    mock_books_table = Mock()
+    mock_books_table.scan.return_value = mock_dynamodb_response
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.query.return_value = {"Items": []}
+
+    event = create_mock_event()
+
+    with patch.object(config, "books_table", mock_books_table), \
+         patch.object(config, "user_books_table", mock_user_books_table):
+        resp = handler.list_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert len(body["books"]) == 1
+    assert body["books"][0]["coverImageUrl"] == "https://books.google.com/books/content/images/frontcover/12345.jpg"
+
+
+def test_get_book_handler_returns_cover_url():
+    """Test that get_book_handler returns coverImageUrl in response"""
+
+    event = create_mock_event(path_params={"id": "foundation.zip"})
+
+    mock_books_item = {
+        "Item": {
+            "id": "foundation.zip",
+            "name": "Foundation",
+            "size": Decimal("1024000"),
+            "created": "2023-06-15T10:30:00Z",
+            "s3_url": "s3://test-bucket/books/foundation.zip",
+            "author": "Isaac Asimov",
+            "coverImageUrl": "https://books.google.com/books/content/images/frontcover/12345.jpg",
+        }
+    }
+
+    mock_url = "https://s3.amazonaws.com/test-bucket/books/foundation.zip?signed=true"
+
+    mock_books_table = Mock()
+    mock_books_table.get_item.return_value = mock_books_item
+
+    mock_user_books_table = Mock()
+    mock_user_books_table.get_item.return_value = {}
+
+    with (
+        patch.object(config, "books_table", mock_books_table),
+        patch.object(config, "user_books_table", mock_user_books_table),
+        patch.object(config.s3_client, "generate_presigned_url", return_value=mock_url),
+    ):
+        resp = handler.get_book_handler(event, None)
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+    assert body["coverImageUrl"] == "https://books.google.com/books/content/images/frontcover/12345.jpg"

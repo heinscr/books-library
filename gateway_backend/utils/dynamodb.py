@@ -6,7 +6,7 @@ Provides functions for building DynamoDB update expressions and queries.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict
 
 
 def build_update_expression(
@@ -59,3 +59,57 @@ def build_update_expression(
     update_expression = " ".join(update_expression_parts)
 
     return update_expression, expr_attr_values, expr_attr_names
+
+
+def build_update_params(
+    key: Dict[str, Any],
+    fields: Dict[str, Any],
+    allow_remove: bool = False,
+    condition_expression: str | None = None,
+    return_values: str = "ALL_NEW"
+) -> Dict[str, Any]:
+    """
+    Build complete DynamoDB update_item parameters.
+
+    Handles the common pattern of building update expressions and
+    conditionally including ExpressionAttributeValues when not empty.
+
+    Args:
+        key: Primary key for the item to update
+        fields: Dictionary of field names to values
+        allow_remove: If True, None/empty values will REMOVE the attribute
+        condition_expression: Optional condition expression
+        return_values: Return values option (default: ALL_NEW)
+
+    Returns:
+        dict: Complete parameters for table.update_item()
+
+    Example:
+        params = build_update_params(
+            key={"id": "book-123"},
+            fields={"author": "New Author", "series_order": None},
+            allow_remove=True,
+            condition_expression="attribute_exists(id)"
+        )
+        response = table.update_item(**params)
+    """
+    update_expression, expr_values, expr_names = build_update_expression(
+        fields, allow_remove=allow_remove
+    )
+
+    params = {
+        "Key": key,
+        "UpdateExpression": update_expression,
+        "ExpressionAttributeNames": expr_names,
+        "ReturnValues": return_values,
+    }
+
+    # Only add ExpressionAttributeValues if not empty (REMOVE-only operations have no values)
+    if expr_values:
+        params["ExpressionAttributeValues"] = expr_values
+
+    # Add condition expression if provided
+    if condition_expression:
+        params["ConditionExpression"] = condition_expression
+
+    return params

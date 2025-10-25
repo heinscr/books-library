@@ -90,6 +90,10 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 🔍 **Search & filter** - Real-time search across titles, authors, and series names
 - 🎯 Filter controls (hide read books, group by author)
 - 💾 Persistent state across sessions
+- 🖼️ **Automatic book covers** - Fetches cover images from Google Books API
+- 🎨 **Visual book cards** - 80x120px cover thumbnails with gradient backgrounds
+- 🔄 **Smart cover updates** - Automatically refreshes covers when author changes
+- 📐 **Blank placeholders** - Clean empty state for books without covers
 
 ### Backend
 - 🚀 Serverless architecture (AWS Lambda + DynamoDB)
@@ -106,6 +110,10 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 📊 Sorted by date (newest first)
 - 🌐 CORS enabled for cross-origin requests
 - ⚡ Auto-ingestion: S3 trigger automatically adds new books to DynamoDB
+- 🖼️ **Automatic cover fetching** - Queries Google Books API for cover images
+- 🔄 **Smart cover updates** - Automatically refreshes covers when author metadata changes
+- 🧹 **Cover cleanup** - Removes cover URLs when fetch fails (prevents stale data)
+- 📚 **Modular utilities** - Reusable cover and DynamoDB helpers with 100% test coverage
 
 ## 🚀 Quick Start
 

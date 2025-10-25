@@ -98,4 +98,7 @@ def serialize_book_response(book_item: dict, read_status: bool = False) -> dict:
     if "series_order" in book_item:
         book["series_order"] = convert_decimal(book_item["series_order"])
 
+    if "coverImageUrl" in book_item:
+        book["coverImageUrl"] = book_item["coverImageUrl"]
+
     return book

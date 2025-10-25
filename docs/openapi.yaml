@@ -3,18 +3,23 @@ info:
   title: Books Library API
   description: |
     A serverless book management system with per-user tracking and role-based permissions.
-    
+
     ## Authentication
     All endpoints require AWS Cognito JWT authentication via the `Authorization` header.
-    
+
     ## Admin Permissions
     - Upload operations require users to be in the "admins" Cognito group
     - Delete operations require users to be in the "admins" Cognito group
     - All other operations are available to authenticated users
-    
+
     ## Per-User Tracking
     - Read status is tracked per user in the UserBooks table
     - Book metadata (author, title, series) is shared globally
+
+    ## Automatic Book Covers
+    - Cover images are automatically fetched from Google Books API
+    - Covers are fetched on initial upload and when author metadata changes
+    - If no cover is found, the `coverImageUrl` field will be null
   version: 1.0.0
   contact:
     name: Books Library
@@ -83,7 +88,12 @@ components:
           type: string
           description: S3 storage location
           example: "s3://bucket/books/Book Title.zip"
-    
+        coverImageUrl:
+          type: string
+          nullable: true
+          description: Google Books API cover image URL (automatically fetched)
+          example: "https://books.google.com/books/content?id=ABC&printsec=frontcover&img=1&zoom=1&source=gbs_api"
+
     BooksList:
       type: object
       properties:

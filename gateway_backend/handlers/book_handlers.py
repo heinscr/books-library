@@ -18,7 +18,8 @@ try:
     # Lambda deployment
     import config
     from utils.auth import get_user_id, is_admin
-    from utils.dynamodb import build_update_expression
+    from utils.cover import update_cover_on_author_change
+    from utils.dynamodb import build_update_expression, build_update_params
     from utils.response import api_response, error_response, serialize_book_response
     from utils.validation import (
         get_path_param,
@@ -31,7 +32,8 @@ except ImportError:
     # Local development
     import gateway_backend.config as config
     from gateway_backend.utils.auth import get_user_id, is_admin
-    from gateway_backend.utils.dynamodb import build_update_expression
+    from gateway_backend.utils.cover import update_cover_on_author_change
+    from gateway_backend.utils.dynamodb import build_update_expression, build_update_params
     from gateway_backend.utils.response import api_response, error_response, serialize_book_response
     from gateway_backend.utils.validation import (
         get_path_param,
@@ -130,23 +132,18 @@ def _update_book_metadata(book_id: str, metadata_fields: dict[str, Any]) -> dict
     Raises:
         ClientError: If book not found or DynamoDB error
     """
-    # Build update expression dynamically
-    update_expression, expr_attr_values, expr_attr_names = build_update_expression(
-        metadata_fields, allow_remove=True
+    logger.info(f"Updating book metadata for {book_id} with fields: {list(metadata_fields.keys())}")
+
+    # Build update parameters using utility function
+    update_params = build_update_params(
+        key={"id": book_id},
+        fields=metadata_fields,
+        allow_remove=True,
+        condition_expression="attribute_exists(id)",
+        return_values="ALL_NEW"
     )
 
-    # Update the item in DynamoDB
-    logger.info(
-        f"Updating book metadata for {book_id} with fields: {list(expr_attr_names.values())}"
-    )
-    response = config.books_table.update_item(
-        Key={"id": book_id},
-        UpdateExpression=update_expression,
-        ExpressionAttributeValues=expr_attr_values,
-        ExpressionAttributeNames=expr_attr_names,
-        ReturnValues="ALL_NEW",
-        ConditionExpression="attribute_exists(id)",
-    )
+    response = config.books_table.update_item(**update_params)
 
     logger.info(f"Successfully updated book metadata: {book_id}")
     return response["Attributes"]
@@ -358,6 +355,23 @@ def update_book_handler(event, context):
         # Update book metadata if provided
         updated_book = None
         if book_metadata_fields:
+            # Check if author is changing - if so, fetch new cover
+            if "author" in book_metadata_fields:
+                try:
+                    # Get current book to check existing author
+                    get_response = config.books_table.get_item(Key={"id": book_id})
+                    if "Item" in get_response:
+                        current_book = get_response["Item"]
+                        current_author = current_book.get("author", "")
+                        title = current_book.get("name", book_id)
+                        new_author = book_metadata_fields["author"]
+
+                        # Update cover if author is changing
+                        update_cover_on_author_change(current_author, new_author, title, book_metadata_fields)
+                except ClientError as e:
+                    logger.error(f"Error getting current book: {str(e)}")
+                    # Continue with update anyway
+
             try:
                 updated_book = _update_book_metadata(book_id, book_metadata_fields)
             except ClientError as e:

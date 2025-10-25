@@ -23,15 +23,33 @@ function createBookCard(book) {
     
     // Format file size
     const sizeInMB = book.size ? (book.size / (1024 * 1024)).toFixed(2) : '?';
-    
-    // Build book info HTML
-    let bookInfo = `
-        <div class="book-header">
-            <div class="book-name">${escapeHtml(book.name)}</div>
-            <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
-                ${isRead ? '✓' : '○'}
+
+    // Build cover image HTML
+    let coverHTML = '';
+    if (book.coverImageUrl) {
+        coverHTML = `
+            <div class="book-cover">
+                <img src="${escapeHtml(book.coverImageUrl)}"
+                     alt="Cover of ${escapeHtml(book.name)}"
+                     onerror="this.parentElement.classList.add('no-cover'); this.style.display='none';">
             </div>
-        </div>
+        `;
+    } else {
+        coverHTML = `
+            <div class="book-cover no-cover">
+            </div>
+        `;
+    }
+
+    // Build book info HTML
+    let bookInfo = coverHTML + `
+        <div class="book-info-content">
+            <div class="book-header">
+                <div class="book-name">${escapeHtml(book.name)}</div>
+                <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                    ${isRead ? '✓' : '○'}
+                </div>
+            </div>
     `;
     
     // Add author if available
@@ -56,15 +74,16 @@ function createBookCard(book) {
     }
     
     bookInfo += `
-        <div class="book-meta">
-            <div class="book-size">📦 ${sizeInMB} MB</div>
-            <div class="book-date">📅 ${formattedDate}</div>
-        </div>
-        <div class="book-download">
-            <span class="download-icon">⬇️</span>
+            <div class="book-meta">
+                <div class="book-size">📦 ${sizeInMB} MB</div>
+                <div class="book-date">📅 ${formattedDate}</div>
+            </div>
+            <div class="book-download">
+                <span class="download-icon">⬇️</span>
+            </div>
         </div>
     `;
-    
+
     bookCard.innerHTML = bookInfo;
 
     // Ensure the data-book-id attribute stores the raw book id (not HTML-escaped)
