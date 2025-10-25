@@ -9,9 +9,9 @@ Lambda functions for the Books Library API.
 - `get_book_handler` - Get book and download URL
 - `update_book_handler` - Update book metadata
 - `delete_book_handler` - Delete book from DynamoDB and S3
-- `upload_handler` - Generate presigned upload URL
-- `set_upload_metadata_handler` - Set author after upload
-- `s3_trigger_handler` - Auto-populate from S3 events
+- `upload_handler` - Generate presigned upload URL with S3 tags
+- `set_upload_metadata_handler` - Set metadata after upload (legacy)
+- `s3_trigger_handler` - Auto-populate from S3 events, read S3 tags
 
 ### `list_handler(event, context)`
 Lists all books from DynamoDB with complete metadata.
@@ -108,36 +108,53 @@ Generates a presigned PUT URL for uploading books directly to S3.
 **Features:**
 - Supports files up to 5GB
 - 60-minute expiration for large uploads
-- Author field passed through (used by metadata endpoint)
+- **S3 object tagging** - Metadata embedded as tags in presigned URL
+- Accepts `author`, `series_name`, and `series_order` fields
+- Tags are automatically attached during S3 upload
 - Validates .zip file extension
+- Validates series_order (1-100 range)
+
+**S3 Tagging Flow:**
+1. Client sends metadata in POST /upload request
+2. Backend generates presigned URL with S3 tags
+3. Client uploads file with tags automatically attached
+4. S3 trigger reads tags and creates DynamoDB record
+5. No separate metadata endpoint call needed!
 
 ### `set_upload_metadata_handler(event, context)`
-Sets metadata (author) on a book after S3 upload completes.
+**Legacy endpoint** - Sets metadata on a book after S3 upload completes. Maintained for backward compatibility and manual updates, but no longer used in primary upload flow.
 
 **Parameters:**
-- Body: JSON with `bookId` (required) and `author` (optional)
+- Body: JSON with `bookId` (required), `author`, `series_name`, and `series_order` (optional)
 
 **Returns:**
 ```json
 {
   "message": "Metadata updated successfully",
   "bookId": "Book Title",
-  "author": "Author Name"
+  "author": "Author Name",
+  "series_name": "Series Name",
+  "series_order": 1
 }
 ```
 
 **Features:**
-- Called by frontend after S3 upload
-- Updates DynamoDB record with author field
-- Returns 404 if book not found (S3 trigger hasn't processed yet)
-- Validates author length (max 500 characters)
+- Updates DynamoDB record with metadata fields
+- Returns 404 if book not found
+- Validates field lengths and series_order range
 
 ### `s3_trigger_handler(event, context)`
-S3 event trigger that auto-populates DynamoDB when books are uploaded.
+S3 event trigger that auto-populates DynamoDB when books are uploaded. **Now reads S3 object tags** for metadata.
 
 **Triggered by:** S3 ObjectCreated events in the books/ prefix
-**Creates:** DynamoDB record with extracted metadata (name, author, size, created date)
-**Features:** URL-decodes filenames (handles spaces and special characters)
+**Creates:** DynamoDB record with metadata from S3 tags and filename
+
+**Features:**
+- Reads S3 object tags: `author`, `series_name`, `series_order`
+- Tags override filename-based metadata extraction
+- Falls back to filename parsing if tags not present
+- URL-decodes filenames (handles spaces and special characters)
+- Gracefully handles tag read errors
 
 ## Environment Variables
 

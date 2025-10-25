@@ -203,7 +203,9 @@ async function uploadBook() {
         const uploadRequestBody = {
             filename: selectedFile.name,
             fileSize: selectedFile.size,
-            author: author || undefined
+            author: author || undefined,
+            series_name: seriesName || undefined,
+            series_order: seriesOrder ? parseInt(seriesOrder, 10) : undefined
         };
         
         // Upload endpoint is at /upload (not /books/upload)
@@ -239,13 +241,13 @@ async function uploadBook() {
         
         await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            
+
             // Track upload progress
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
                     const percentComplete = (e.loaded / e.total) * 60; // 30% to 90% range
                     progressFill.style.width = `${30 + percentComplete}%`;
-                    
+
                     // Show upload size
                     const mbLoaded = (e.loaded / 1024 / 1024).toFixed(1);
                     const mbTotal = (e.total / 1024 / 1024).toFixed(1);
@@ -259,7 +261,7 @@ async function uploadBook() {
                     }
                 }
             });
-            
+
             xhr.addEventListener('load', () => {
                 if (xhr.status === 200) {
                     progressFill.style.width = '90%';
@@ -269,86 +271,40 @@ async function uploadBook() {
                     reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
                 }
             });
-            
+
             xhr.addEventListener('error', () => {
                 reject(new Error('Network error during S3 upload'));
             });
-            
+
             xhr.addEventListener('abort', () => {
                 reject(new Error('Upload was aborted'));
             });
-            
+
             xhr.addEventListener('timeout', () => {
                 reject(new Error('Upload timed out'));
             });
-            
+
             // Set a longer timeout for large files (30 minutes)
             xhr.timeout = 1800000;
-            
+
             xhr.open('PUT', uploadData.uploadUrl);
             xhr.setRequestHeader('Content-Type', 'application/zip');
+
+            // If tagging is present, send it as a header (required for presigned URL signature)
+            if (uploadData.tagging) {
+                xhr.setRequestHeader('x-amz-tagging', uploadData.tagging);
+            }
+
             xhr.send(selectedFile);
         });
         
         progressFill.style.width = '95%';
         progressText.textContent = 'Processing...';
-        
+
         // Wait for S3 trigger to process and create DynamoDB record
+        // Metadata is now set via S3 object tags, so S3 trigger will handle it
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Step 3: Set metadata (author, series fields) if provided
-        if (author || seriesName || seriesOrder) {
-            try {
-                // Extract book ID from filename (remove .zip extension)
-                const bookId = selectedFile.name.replace('.zip', '');
-                
-                const metadataUrl = API_URL.replace('/books', '') + '/upload/metadata';
-                
-                // Build metadata payload
-                const metadataPayload = { bookId };
-                if (author) metadataPayload.author = author;
-                if (seriesName) metadataPayload.series_name = seriesName;
-                if (seriesOrder) metadataPayload.series_order = parseInt(seriesOrder, 10);
-                
-                // Retry logic in case S3 trigger hasn't finished yet
-                let retries = 3;
-                let success = false;
-                
-                while (retries > 0 && !success) {
-                    const metadataResponse = await fetch(metadataUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify(metadataPayload)
-                    });
-                    
-                    if (metadataResponse.ok) {
-                        console.log(`Successfully set metadata for ${bookId}`);
-                        success = true;
-                    } else if (metadataResponse.status === 404) {
-                        // Record not found yet, S3 trigger still processing
-                        console.log(`Book record not ready yet, retrying... (${retries} attempts left)`);
-                        retries--;
-                        if (retries > 0) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
-                    } else {
-                        console.warn(`Failed to set metadata: ${metadataResponse.status}`);
-                        break;
-                    }
-                }
-                
-                if (!success) {
-                    console.warn('Failed to set metadata after retries');
-                }
-            } catch (metadataError) {
-                // Don't fail the entire upload if metadata update fails
-                console.warn('Failed to set metadata:', metadataError);
-            }
-        }
-        
+
         progressFill.style.width = '100%';
         progressText.textContent = 'Upload complete!';
         

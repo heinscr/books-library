@@ -276,13 +276,20 @@ aws cognito-idp admin-set-user-password \
 # Get books bucket name
 BOOKS_BUCKET=$(cd terraform && terraform output -raw books_bucket_name)
 
-# Upload a book
+# Upload a book (with optional S3 tags for metadata)
 aws s3 cp "Ernest Cline - Ready Player One.zip" \
   s3://$BOOKS_BUCKET/books/ \
+  --tagging "author=Ernest Cline&series_name=Ready Player&series_order=1" \
   --profile craig-dev
 ```
 
-**Note:** The S3 trigger will automatically add books to DynamoDB.
+**Note:** The S3 trigger will automatically add books to DynamoDB and read S3 tags for metadata.
+
+**S3 Object Tagging (New!):**
+- You can now attach metadata as S3 object tags during upload
+- Supported tags: `author`, `series_name`, `series_order`
+- Tags are read by the S3 trigger Lambda and added to DynamoDB
+- The web UI automatically uses this feature for uploads
 
 ### Step 5.2: Migrate Existing Books
 

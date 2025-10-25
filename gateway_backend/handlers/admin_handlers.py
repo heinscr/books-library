@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from botocore.exceptions import ClientError
 
@@ -18,13 +18,13 @@ try:
     import config
     from utils.auth import get_user_id, is_admin
     from utils.response import api_response, error_response
-    from utils.validation import get_path_param, parse_json_body, validate_string_field
+    from utils.validation import get_path_param, parse_json_body, validate_series_order, validate_string_field
 except ImportError:
     # Local development
     import gateway_backend.config as config
     from gateway_backend.utils.auth import get_user_id, is_admin
     from gateway_backend.utils.response import api_response, error_response
-    from gateway_backend.utils.validation import get_path_param, parse_json_body, validate_string_field
+    from gateway_backend.utils.validation import get_path_param, parse_json_body, validate_series_order, validate_string_field
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -168,6 +168,20 @@ def upload_handler(event, context):
 
         author = body.get("author", "").strip()
 
+        # Validate optional series_name field
+        error = validate_string_field(body, "series_name", max_length=500)
+        if error:
+            return error
+
+        series_name = body.get("series_name", "").strip()
+
+        # Validate optional series_order field
+        error = validate_series_order(body)
+        if error:
+            return error
+
+        series_order = body.get("series_order")
+
         # Get optional file size for validation
         file_size = body.get("fileSize", 0)
         if file_size > config.MAX_FILE_SIZE_BYTES:
@@ -180,22 +194,41 @@ def upload_handler(event, context):
 
         logger.info(f"Generating presigned PUT URL for: {s3_key} ({file_size} bytes)")
 
+        # Build S3 object tags for metadata (URL-encoded)
+        tagging = ""
+        if author:
+            tagging = f"author={quote_plus(author)}"
+        if series_name:
+            if tagging:
+                tagging += "&"
+            tagging += f"series_name={quote_plus(series_name)}"
+        if series_order is not None:
+            if tagging:
+                tagging += "&"
+            tagging += f"series_order={series_order}"
+
         # Generate presigned PUT URL (valid for 60 minutes for large files)
-        # We don't include Metadata in params because it would require the client
-        # to send exact matching headers (signature validation issue causing 403)
+        # Include Tagging parameter to attach metadata as S3 object tags
+        params = {
+            "Bucket": config.BUCKET_NAME,
+            "Key": s3_key,
+            "ContentType": "application/zip",
+        }
+
+        # Add Tagging parameter if we have tags
+        if tagging:
+            params["Tagging"] = tagging
+            logger.info(f"Adding S3 tags to presigned URL: {tagging}")
+
         presigned_url = config.s3_client.generate_presigned_url(
             "put_object",
-            Params={
-                "Bucket": config.BUCKET_NAME,
-                "Key": s3_key,
-                "ContentType": "application/zip",
-            },
+            Params=params,
             ExpiresIn=config.URL_EXPIRY_SECONDS,  # 60 minutes for large file uploads
         )
 
         logger.info(f"Successfully generated presigned PUT URL for {filename}")
 
-        # Return the URL and metadata
+        # Return the URL and metadata (including tagging for frontend to send as header)
         response_data = {
             "uploadUrl": presigned_url,
             "method": "PUT",
@@ -206,7 +239,13 @@ def upload_handler(event, context):
 
         if author:
             response_data["author"] = author
-            logger.info(f"Author will be set via metadata endpoint: {author}")
+        if series_name:
+            response_data["series_name"] = series_name
+        if series_order is not None:
+            response_data["series_order"] = series_order
+        if tagging:
+            response_data["tagging"] = tagging
+            logger.info(f"Metadata will be set via S3 tags: {tagging}")
 
         return api_response(200, response_data)
 

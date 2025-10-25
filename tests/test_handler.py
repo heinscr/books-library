@@ -877,6 +877,205 @@ def test_upload_handler_without_author():
     assert "author" not in body
 
 
+def test_upload_handler_with_s3_tags():
+    """Test upload handler includes S3 tags in presigned URL"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={
+            "filename": "Test Book.zip",
+            "fileSize": 1024000,
+            "author": "Test Author",
+            "series_name": "Test Series",
+            "series_order": 1
+        }
+    )
+
+    mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz"
+
+    with patch.object(config.s3_client, "generate_presigned_url", return_value=mock_presigned_url) as mock_generate:
+        resp = handler.upload_handler(event, None)
+
+    # Verify S3 tags were included in the presigned URL params
+    call_args = mock_generate.call_args
+    params = call_args[1]["Params"]
+
+    assert "Tagging" in params
+    # Values should be URL-encoded (spaces become +)
+    assert "author=Test+Author" in params["Tagging"]
+    assert "series_name=Test+Series" in params["Tagging"]
+    assert "series_order=1" in params["Tagging"]
+
+    assert resp["statusCode"] == 200
+    body = json.loads(resp["body"])
+
+    assert body["author"] == "Test Author"
+    assert body["series_name"] == "Test Series"
+    assert body["series_order"] == 1
+
+
+def test_upload_handler_with_partial_tags():
+    """Test upload handler handles partial metadata tags"""
+
+    event = create_mock_event(
+        is_admin=True,
+        body={
+            "filename": "Test Book.zip",
+            "fileSize": 1024000,
+            "author": "Test Author"
+        }
+    )
+
+    mock_presigned_url = "https://s3.amazonaws.com/test-bucket/books/Test%20Book.zip?signature=xyz"
+
+    with patch.object(config.s3_client, "generate_presigned_url", return_value=mock_presigned_url) as mock_generate:
+        resp = handler.upload_handler(event, None)
+
+    # Verify only author tag is included (URL-encoded)
+    call_args = mock_generate.call_args
+    params = call_args[1]["Params"]
+
+    assert "Tagging" in params
+    assert params["Tagging"] == "author=Test+Author"
+
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_with_tags():
+    """Test S3 trigger handler reads tags and updates DynamoDB"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Test Book.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    # Mock S3 get_object_tagging response
+    mock_tagging_response = {
+        "TagSet": [
+            {"Key": "author", "Value": "Test Author"},
+            {"Key": "series_name", "Value": "Test Series"},
+            {"Key": "series_order", "Value": "1"}
+        ]
+    }
+
+    mock_table = Mock()
+
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", return_value=mock_tagging_response):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Verify put_item was called with tag data
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args["Item"]
+
+    assert item["author"] == "Test Author"
+    assert item["series_name"] == "Test Series"
+    assert item["series_order"] == 1
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_tags_override_filename_metadata():
+    """Test S3 tags override metadata extracted from filename"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Wrong Author - Test Book.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    # Mock S3 get_object_tagging response with correct author
+    mock_tagging_response = {
+        "TagSet": [
+            {"Key": "author", "Value": "Correct Author"}
+        ]
+    }
+
+    mock_table = Mock()
+
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", return_value=mock_tagging_response):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Verify tag data overrides filename metadata
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args["Item"]
+
+    assert item["author"] == "Correct Author"  # From tags, not filename
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_no_tags():
+    """Test S3 trigger handler works without tags (falls back to filename)"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Test Author - Test Book.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    # Mock S3 get_object_tagging response with no tags
+    mock_tagging_response = {"TagSet": []}
+
+    mock_table = Mock()
+
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", return_value=mock_tagging_response):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Verify filename metadata is used
+    call_args = mock_table.put_item.call_args[1]
+    item = call_args["Item"]
+
+    assert item["author"] == "Test Author"  # From filename
+    assert item["name"] == "Test Book"
+    assert resp["statusCode"] == 200
+
+
+def test_s3_trigger_handler_tag_read_error():
+    """Test S3 trigger handler continues on tag read error"""
+
+    event = {
+        "Records": [
+            {
+                "s3": {
+                    "bucket": {"name": "test-bucket"},
+                    "object": {"key": "books/Test Book.zip", "size": 2048000},
+                }
+            }
+        ]
+    }
+
+    mock_table = Mock()
+
+    # Mock S3 get_object_tagging to raise an error
+    from botocore.exceptions import ClientError
+    error_response = {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}
+
+    with patch.object(config, "books_table", mock_table), \
+         patch.object(config.s3_client, "get_object_tagging", side_effect=ClientError(error_response, "GetObjectTagging")):
+        resp = handler.s3_trigger_handler(event, None)
+
+    # Verify handler still creates record without tags
+    assert mock_table.put_item.called
+    assert resp["statusCode"] == 200
+
+
 # ============================================================================
 # Set Upload Metadata Handler Tests
 # ============================================================================

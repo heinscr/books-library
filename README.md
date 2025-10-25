@@ -21,8 +21,8 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 │     ├─ GET /books/{id} - Get presigned download URL             │
 │     ├─ PATCH /books/{id} - Update book metadata & read status   │
 │     ├─ DELETE /books/{id} - Delete book (admins only)           │
-│     ├─ POST /upload - Get presigned URL for S3 upload           │
-│     └─ POST /upload/metadata - Set author after upload          │
+│     ├─ POST /upload - Get presigned URL with S3 tags            │
+│     └─ POST /upload/metadata - Manual metadata update (legacy)  │
 └─────────────────────────────────────────────────────────────────┘
                             │
         ┌───────────────────┼──────────────┬─────────────┬──────────────┐
@@ -60,7 +60,8 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
          ▼
 ┌──────────────────────┐
 │ S3TriggerFunction    │
-│ (Auto-add to DB)     │
+│ (Read S3 tags &      │
+│  Auto-add to DB)     │
 └──────────────────────┘
 ```
 
@@ -75,6 +76,7 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - ⬇️ One-click downloads via presigned URLs
 - 📤 **Web-based book upload** with drag-and-drop support (up to 5GB, admins only)
 - 🤖 **Smart metadata lookup** - Auto-populates author and series from Google Books API
+- 🏷️ **S3 object tagging** - Metadata attached atomically during upload (no race conditions!)
 - 📝 **Book editor modal** - Click any book to view/edit details
 - ✏️ **Inline metadata editing** - Update author, series name, and series order
 - 📚 **Series support** - Track book series with name and order fields
@@ -383,7 +385,7 @@ Permanently deletes a book from S3 and both DynamoDB tables (Books and UserBooks
 - `500 Internal Server Error` - S3 or DynamoDB error
 
 ### POST /upload
-Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
+Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB). **Now supports S3 object tagging** to automatically set metadata during upload.
 
 **Authorization:**
 - Requires user to be in the "admins" Cognito group
@@ -397,7 +399,9 @@ Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
 {
   "filename": "Book Title.zip",
   "fileSize": 459816876,
-  "author": "Author Name"
+  "author": "Author Name",
+  "series_name": "The Great Series",
+  "series_order": 1
 }
 ```
 
@@ -408,12 +412,29 @@ Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB).
   "method": "PUT",
   "filename": "Book Title.zip",
   "s3Key": "books/Book Title.zip",
-  "expiresIn": 3600
+  "expiresIn": 3600,
+  "author": "Author Name",
+  "series_name": "The Great Series",
+  "series_order": 1
 }
 ```
 
+**How S3 Tagging Works:**
+1. Client sends metadata (author, series_name, series_order) in the initial POST request
+2. Backend generates presigned URL with S3 object tags embedded
+3. Client uploads file to S3 with tags automatically attached
+4. S3 trigger Lambda reads tags and creates DynamoDB record with metadata
+5. **No separate metadata endpoint call needed!**
+
+**Notes:**
+- All metadata fields are optional
+- `series_order` must be an integer between 1 and 100 if provided
+- Frontend uses Google Books API to auto-populate fields when file is selected
+- Supports multiple regex patterns to extract series info from book titles
+- Tags are attached atomically during upload, eliminating race conditions
+
 ### POST /upload/metadata
-Sets metadata (author, series name, series order) on a book after S3 upload completes. The frontend automatically calls Google Books API to fetch metadata when a file is selected, then sends it here.
+**Legacy endpoint** - Sets metadata on a book after S3 upload completes. This endpoint is maintained for backward compatibility and manual metadata updates, but is **no longer used in the primary upload flow** (metadata is now set via S3 object tags).
 
 **Authorization:**
 - Requires user to be in the "admins" Cognito group
@@ -446,12 +467,11 @@ Sets metadata (author, series name, series order) on a book after S3 upload comp
 **Notes:**
 - All fields except `bookId` are optional
 - `series_order` must be an integer between 1 and 100 if provided
-- Frontend uses Google Books API to auto-populate fields when file is selected
-- Supports multiple regex patterns to extract series info from book titles
+- Use this endpoint to update metadata after initial upload
 
 ## 🧪 Testing & Code Quality
 
-**Comprehensive test coverage** with 47 backend unit tests and E2E frontend tests.
+**Comprehensive test coverage** with 85 backend unit tests (including S3 tagging tests) and E2E frontend tests.
 
 ### Backend Unit Tests
 

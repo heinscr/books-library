@@ -190,6 +190,12 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref BucketName
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:PutObjectTagging
+              - s3:GetObjectTagging
+            Resource: !Sub 'arn:aws:s3:::${BucketName}/*'
       Events:
         UploadApi:
           Type: Api
@@ -241,6 +247,11 @@ Resources:
             TableName: !Ref BooksTable
         - S3ReadPolicy:
             BucketName: !Ref BucketName
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObjectTagging
+            Resource: !Sub 'arn:aws:s3:::${BucketName}/*'
       # Note: S3 event trigger must be configured manually on existing bucket
       # or use 'aws s3api put-bucket-notification-configuration' after deployment
 

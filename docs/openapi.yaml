@@ -374,10 +374,16 @@ paths:
     post:
       tags:
         - Upload
-      summary: Get presigned upload URL (admin only)
+      summary: Get presigned upload URL with S3 tags (admin only)
       description: |
         Generates a presigned S3 PUT URL for uploading books directly to S3.
         Supports files up to 5GB. Requires admin permissions.
+
+        **S3 Object Tagging**: Metadata (author, series_name, series_order) is
+        embedded as S3 object tags in the presigned URL. When the file is uploaded,
+        tags are automatically attached. The S3 trigger Lambda reads these tags and
+        creates the DynamoDB record with metadata. No separate metadata endpoint
+        call is needed!
       operationId: getUploadUrl
       requestBody:
         required: true
@@ -399,8 +405,19 @@ paths:
                 author:
                   type: string
                   maxLength: 500
-                  description: Optional author name
+                  description: Optional author name (attached as S3 tag)
                   example: "Author Name"
+                series_name:
+                  type: string
+                  maxLength: 500
+                  description: Optional series name (attached as S3 tag)
+                  example: "The Great Series"
+                series_order:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Optional series order (attached as S3 tag)
+                  example: 1
       responses:
         '200':
           description: Presigned upload URL generated
@@ -440,10 +457,13 @@ paths:
     post:
       tags:
         - Upload
-      summary: Set metadata after upload (admin only)
+      summary: Set metadata after upload (admin only) - LEGACY
       description: |
-        Sets metadata (author, series) on a book after S3 upload completes.
-        Frontend calls this after successful upload. Requires admin permissions.
+        **Legacy endpoint**: Sets metadata (author, series) on a book after S3 upload completes.
+
+        This endpoint is maintained for backward compatibility and manual metadata updates,
+        but is **no longer used in the primary upload flow**. Metadata is now set via S3 object
+        tags during upload. Use this endpoint only for updating metadata after initial upload.
       operationId: setUploadMetadata
       requestBody:
         required: true

@@ -88,6 +88,7 @@ def s3_trigger_handler(event, context):
     """
     Lambda handler triggered by S3 when a new file is uploaded to books/.
     Creates a DynamoDB record for the new book.
+    Reads S3 object tags for author, series_name, and series_order metadata.
     """
     try:
         for record in event.get("Records", []):
@@ -124,9 +125,39 @@ def s3_trigger_handler(event, context):
                 "size": s3_size,
             }
 
-            # Extract metadata from filename
+            # Extract metadata from filename (fallback if tags not present)
             metadata = _extract_book_metadata(friendly_name)
             item.update(metadata)
+
+            # Read S3 object tags for author, series_name, and series_order
+            try:
+                tagging_response = config.s3_client.get_object_tagging(
+                    Bucket=bucket_name,
+                    Key=s3_key
+                )
+                tags = tagging_response.get("TagSet", [])
+
+                # Extract metadata from tags (override filename-based metadata)
+                for tag in tags:
+                    tag_key = tag.get("Key")
+                    tag_value = tag.get("Value")
+
+                    if tag_key == "author" and tag_value:
+                        item["author"] = tag_value
+                        logger.info(f"Found author tag: {tag_value}")
+                    elif tag_key == "series_name" and tag_value:
+                        item["series_name"] = tag_value
+                        logger.info(f"Found series_name tag: {tag_value}")
+                    elif tag_key == "series_order" and tag_value:
+                        try:
+                            item["series_order"] = int(tag_value)
+                            logger.info(f"Found series_order tag: {tag_value}")
+                        except (ValueError, TypeError):
+                            logger.warning(f"Invalid series_order tag value: {tag_value}")
+
+            except ClientError as e:
+                logger.warning(f"Error reading S3 object tags: {str(e)}")
+                # Continue without tags - we already have filename-based metadata
 
             # Put item in DynamoDB
             try:
