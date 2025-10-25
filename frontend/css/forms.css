@@ -128,3 +128,45 @@
     color: #95a5a6;
     font-style: italic;
 }
+
+.search-container {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: top;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 20px;
+    background: rgba(248, 249, 250, 0.95);
+    border-radius: 8px;
+    border: 2px solid #d4a574;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.search-container:hover {
+    border-color: #ffd700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.search-container input[type="text"] {
+    padding: 0;
+    margin: 0;
+    font-size: 14px;
+    line-height: normal;
+    border: none;
+    background: transparent;
+    color: #2d1f13;
+    font-weight: 600;
+    width: 300px;
+    vertical-align: middle;
+}
+
+.search-container input[type="text"]:focus {
+    outline: none;
+}
+
+.search-container input[type="text"]::placeholder {
+    color: #95a5a6;
+    font-weight: 500;
+}

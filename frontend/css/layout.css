@@ -16,8 +16,8 @@
 /* Controls row (upload + filter on same line) */
 .controls-row {
     display: flex;
-    justify-content: flex-end; /* Align filters to the right */
-    align-items: center;
+    justify-content: space-between; /* Search on left, filters on right */
+    align-items: flex-start;
     margin-bottom: 30px;
     gap: 20px;
 }

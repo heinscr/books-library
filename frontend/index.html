@@ -45,6 +45,9 @@
     <div class="container">
         <!-- Controls row (filter only) -->
         <div id="controlsRow" class="controls-row" style="display: none;">
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="🔍 Search books, authors, or series..." oninput="applyFilters()">
+            </div>
             <div class="filter-controls">
                 <label class="filter-toggle">
                     <input type="checkbox" id="hideReadBooks" onchange="applyFilters()">
