@@ -22,6 +22,11 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+.ruff_cache/
+
+# E2E test artifacts
+playwright-report/
+test-results/
 
 # IDE
 .vscode/
@@ -41,7 +46,7 @@ s123
 jwt_token
 
 # Local environment
-.env
+.env  # E2E test credentials (see .env.example)
 .env.local
 
 # Frontend configuration (contains credentials)

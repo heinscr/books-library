@@ -245,7 +245,7 @@ OLD_BUCKET=your-old-bucket NEW_BUCKET=your-new-bucket AWS_REGION=us-east-2 \
 ## Related Documentation
 
 - [Configuration Guide](CONFIGURATION.md) - SAM and frontend configuration
-- [Deployment Guide](DEPLOYMENT_GUIDE.md) - Lambda deployment process
+- [Manual Deployment Guide](MANUAL_DEPLOYMENT.md) - Lambda deployment process
 - [Scripts README](scripts/README.md) - All available scripts including migration
 
 ## Lessons Learned

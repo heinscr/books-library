@@ -147,13 +147,23 @@ lint: ## Run linting
 	./scripts/lint.sh
 	@echo "$(GREEN)✓ Linting complete$(NC)"
 
+disk-usage: ## Show disk usage by directory
+	@echo "$(YELLOW)Disk usage by directory:$(NC)"
+	@du -sh .aws-sam/ 2>/dev/null && echo "" || echo "  .aws-sam/: not present"
+	@du -sh htmlcov/ 2>/dev/null && echo "" || echo "  htmlcov/: not present"
+	@du -sh .pytest_cache/ 2>/dev/null && echo "" || echo "  .pytest_cache/: not present"
+	@du -sh .ruff_cache/ 2>/dev/null && echo "" || echo "  .ruff_cache/: not present"
+	@echo ""
+	@echo "Run 'make clean' to remove build artifacts"
+
 clean: ## Clean build artifacts
 	@echo "$(YELLOW)Cleaning build artifacts...$(NC)"
 	rm -rf .aws-sam/
-	rm -rf __pycache__/
+	rm -rf htmlcov/
+	rm -rf .coverage
 	rm -rf .pytest_cache/
-	rm -rf gateway_backend/__pycache__/
-	rm -rf tests/__pycache__/
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	rm -f terraform-outputs.txt
 	@echo "$(GREEN)✓ Clean complete$(NC)"
 

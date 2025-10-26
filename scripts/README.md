@@ -98,6 +98,54 @@ python3 migrate-books.py
 - To populate table with existing books in S3
 - To re-sync if DynamoDB table is recreated
 
+### `backfill-covers.py`
+Backfills book cover images from Google Books API for existing books.
+
+**Usage:**
+```bash
+# Use defaults
+export AWS_PROFILE=your-profile
+python3 backfill-covers.py
+
+# With verbose output
+python3 backfill-covers.py --verbose
+```
+
+**Features:**
+- Queries Google Books API for cover images
+- Updates DynamoDB with cover URLs
+- Skips books that already have covers
+- Rate limiting to avoid API throttling
+- Progress reporting
+
+**When to run:**
+- After initial migration of books without covers
+- Periodically to update missing cover images
+- After author metadata corrections
+
+---
+
+### `lint.sh`
+Runs code quality checks and linting on the codebase.
+
+**Usage:**
+```bash
+./lint.sh
+```
+
+**Checks:**
+- Python code style (ruff)
+- Type checking (pyright)
+- Import sorting
+- Code formatting
+
+**When to run:**
+- Before committing code changes
+- As part of CI/CD pipeline
+- Before pull requests
+
+---
+
 ### `migrate-bucket.py`
 Migrates S3 URLs in DynamoDB when moving books to a new S3 bucket.
 

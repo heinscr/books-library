@@ -269,7 +269,7 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 ├── docs/                  # Documentation
 │   ├── TERRAFORM_SETUP.md      # Complete Terraform workflow guide
 │   ├── CONFIGURATION.md        # Configuration reference
-│   ├── DEPLOYMENT_GUIDE.md     # Manual deployment guide
+│   ├── MANUAL_DEPLOYMENT.md    # Manual deployment guide (alternative to Terraform)
 │   ├── DYNAMODB_MIGRATION.md   # DynamoDB migration documentation
 │   ├── S3_BUCKET_MIGRATION.md  # S3 bucket migration guide
 │   ├── USER_TRACKING_GUIDE.md  # Per-user tracking feature guide
@@ -492,7 +492,9 @@ Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB). **
 
 ## 🧪 Testing & Code Quality
 
-**Comprehensive test coverage** with 85 backend unit tests (including S3 tagging tests) and E2E frontend tests.
+**Test Coverage: 163 tests, all passing** ✅
+- Backend Unit Tests: 120 tests (93% code coverage)
+- E2E Tests: 43 tests (Playwright)
 
 ### Backend Unit Tests
 
@@ -510,11 +512,22 @@ PYTHONPATH=. pipenv run pytest tests/test_handler.py -v
 PYTHONPATH=. pipenv run pytest --cov=gateway_backend --cov-report=term-missing
 ```
 
-**Coverage:** 58 tests covering all Lambda handlers including edge cases with special characters (apostrophes, quotes, etc.) and comprehensive series field validation
+**Coverage:** 120 tests (93% coverage) covering:
+- All Lambda handlers (list, get, update, delete, upload, S3 trigger)
+- Edge cases with special characters (apostrophes, quotes, etc.)
+- Comprehensive input validation (series fields, string lengths, type checking)
+- Book cover fetching and metadata updates
+- DynamoDB utility functions
 
 ### End-to-End (E2E) Tests
 
 Frontend tests using Playwright to verify complete user workflows.
+
+**Coverage:** 43 E2E tests covering:
+- Authentication (login, logout, user menu) - 12 tests
+- Book grid display and filtering - 13 tests
+- Book operations (edit, delete, download) - 18 tests
+- Keyboard navigation and accessibility
 
 ```bash
 # One-time setup: Install Playwright browsers
@@ -523,17 +536,21 @@ pipenv run playwright install chromium
 # Install system dependencies (Linux only)
 sudo apt-get install libnspr4 libnss3 libasound2t64
 
-# Run E2E tests (headless)
-PYTHONPATH=. pipenv run pytest -m e2e
+# Configure test credentials
+cp .env.example .env
+# Edit .env and set TEST_USER_EMAIL and TEST_USER_PASSWORD
+
+# Run E2E tests (recommended - uses helper script)
+./run-e2e-tests.sh
 
 # Run with visible browser (debugging)
-PYTHONPATH=. pipenv run pytest -m e2e --headed
+./run-e2e-tests.sh --headed
 
-# Run specific E2E test
-PYTHONPATH=. pipenv run pytest tests/e2e/test_book_grid.py::TestBookGrid::test_page_loads -v
+# Or run directly with pytest
+PYTHONPATH=. pipenv run pytest -m e2e
 ```
 
-**Coverage:** Smoke tests for page load, book display, filtering, and special character handling. See `tests/e2e/README.md` for details.
+See [docs/TESTING.md](docs/TESTING.md) and [tests/e2e/README.md](tests/e2e/README.md) for detailed test documentation.
 
 ### Code Quality Tools
 

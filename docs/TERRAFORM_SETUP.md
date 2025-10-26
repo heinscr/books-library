@@ -489,6 +489,6 @@ Consider:
 
 See detailed documentation:
 - [`terraform/README.md`](../terraform/README.md) - Infrastructure details
-- [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) - Manual deployment guide
+- [`MANUAL_DEPLOYMENT.md`](MANUAL_DEPLOYMENT.md) - Manual deployment guide
 - [`CONFIGURATION.md`](CONFIGURATION.md) - Configuration reference
 - [`TESTING.md`](TESTING.md) - Testing guide
