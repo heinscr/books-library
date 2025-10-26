@@ -94,6 +94,10 @@ A full-featured serverless book management system built with AWS Lambda, API Gat
 - 🎨 **Visual book cards** - 80x120px cover thumbnails with gradient backgrounds
 - 🔄 **Smart cover updates** - Automatically refreshes covers when author changes
 - 📐 **Blank placeholders** - Clean empty state for books without covers
+- ♿ **WCAG 2.1 Accessibility** - Full keyboard navigation, screen reader support, ARIA labels
+- ⌨️ **Keyboard shortcuts** - Tab/Shift+Tab navigation, Enter/Space activation, Escape to close
+- 🎯 **Focus management** - Modal focus trapping, visible focus indicators, skip links
+- 🔊 **Screen reader friendly** - Semantic HTML5, live regions, descriptive labels
 
 ### Backend
 - 🚀 Serverless architecture (AWS Lambda + DynamoDB)
@@ -199,15 +203,16 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   │   ├── admin_handlers.py    # Admin operations (upload, delete)
 │   │   ├── book_handlers.py     # Book operations (list, get, update)
 │   │   └── s3_handlers.py       # S3 trigger processing
-│   ├── utils/               # Shared utilities
+│   ├── utils/               # Shared utilities (100% test coverage)
 │   │   ├── auth.py              # Authentication & authorization
+│   │   ├── cover.py             # Google Books API cover fetching
 │   │   ├── dynamodb.py          # DynamoDB operations
 │   │   ├── response.py          # HTTP response formatting
 │   │   └── validation.py        # Input validation & sanitization
 │   ├── requirements.txt     # Python dependencies for Lambda
 │   └── README.md            # Backend documentation
 ├── frontend/                # Web interface (modular architecture)
-│   ├── index.html          # Main HTML structure
+│   ├── index.html          # Main HTML structure (semantic HTML5 + ARIA)
 │   ├── app.js              # Application initialization
 │   ├── config.js.example   # Frontend configuration template
 │   ├── css/                # Modular CSS components
@@ -220,15 +225,17 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   │   ├── forms.css           # Form inputs & controls
 │   │   ├── buttons.css         # Button styles
 │   │   ├── alerts.css          # Notifications & toasts
+│   │   ├── accessibility.css   # Accessibility features (WCAG 2.1)
 │   │   └── uncategorized.css   # Misc styles
 │   ├── js/                 # Modular JavaScript
 │   │   ├── auth.js             # Cognito authentication
 │   │   ├── api.js              # API request handling
-│   │   ├── bookCard.js         # Book card rendering
-│   │   ├── bookDetails.js      # Book details modal
+│   │   ├── bookCard.js         # Book card rendering (keyboard accessible)
+│   │   ├── bookDetails.js      # Book details modal (focus trapping)
 │   │   ├── bookRenderer.js     # Book list rendering & sorting
-│   │   ├── filters.js          # Filter controls
+│   │   ├── filters.js          # Filter controls (ARIA state management)
 │   │   ├── upload.js           # File upload with Google Books API
+│   │   ├── accessibility.js    # Accessibility utilities (focus trapping, keyboard nav)
 │   │   ├── ui.js               # UI utilities & toasts
 │   │   └── utils.js            # Helper functions
 │   ├── styles.css          # Legacy CSS (imports css/main.css)
@@ -250,12 +257,15 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   ├── refactor_css.py          # CSS refactoring tool
 │   ├── lint.sh                  # Code quality checks
 │   └── README.md                # Scripts documentation
-├── tests/                  # Test suite
-│   ├── test_handler.py    # Backend unit tests (58 tests, 95% coverage)
-│   └── e2e/               # End-to-end frontend tests
-│       ├── test_book_grid.py    # Playwright browser tests
-│       ├── conftest.py          # Test fixtures
-│       └── README.md            # E2E test documentation
+├── tests/                  # Test suite (163 tests total)
+│   ├── test_handler.py    # Backend unit tests (82 tests)
+│   ├── test_utils.py      # Utility module tests (38 tests, 100% coverage)
+│   └── e2e/               # End-to-end frontend tests (43 tests, Playwright)
+│       ├── test_authentication.py  # Login/logout tests (12 tests)
+│       ├── test_book_grid.py       # Display/filtering tests (13 tests)
+│       ├── test_book_operations.py # Modal/editing tests (18 tests)
+│       ├── conftest.py             # Test fixtures & authentication
+│       └── README.md               # E2E test documentation
 ├── docs/                  # Documentation
 │   ├── TERRAFORM_SETUP.md      # Complete Terraform workflow guide
 │   ├── CONFIGURATION.md        # Configuration reference
@@ -263,18 +273,20 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   ├── DYNAMODB_MIGRATION.md   # DynamoDB migration documentation
 │   ├── S3_BUCKET_MIGRATION.md  # S3 bucket migration guide
 │   ├── USER_TRACKING_GUIDE.md  # Per-user tracking feature guide
-│   ├── TESTING.md              # Testing guide
+│   ├── TESTING.md              # Testing guide (163 tests, all passing)
+│   ├── E2E_TEST_SETUP.md       # E2E setup & troubleshooting
 │   ├── TEST_STATUS.md          # Current test status
 │   ├── api-docs.html           # Swagger UI for API
 │   └── openapi.yaml            # OpenAPI 3.0 specification
 ├── template.yaml           # SAM CloudFormation template
 ├── samconfig.toml.example # SAM deployment config template
+├── .env.example           # E2E test credentials template
+├── run-e2e-tests.sh       # E2E test runner script
 ├── Makefile               # Automated deployment commands
-├── Pipfile                # Python dependencies (local dev)
+├── Pipfile                # Python dependencies (local dev + testing)
 ├── Pipfile.lock           # Locked dependency versions
 ├── pyproject.toml         # Python project config (Black, Ruff, MyPy)
 ├── pytest.ini             # Pytest configuration
-├── playwright.ini         # Playwright test configuration
 ├── LICENSE                # MIT License
 └── README.md              # This file
 ```
