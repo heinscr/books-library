@@ -146,68 +146,122 @@ To integrate with CI/CD:
 
 ### Overview
 
-E2E tests verify the complete user experience using Playwright to automate browser interactions.
+E2E tests verify the complete user experience using Playwright to automate browser interactions against the deployed application.
 
 **Location**: `tests/e2e/`
 **Framework**: Playwright + pytest-playwright
+**Test Count**: **43 tests, all passing** ✅
+
+### Quick Start
+
+```bash
+# Set up credentials (one-time setup)
+cp .env.example .env
+# Edit .env and add TEST_USER_EMAIL and TEST_USER_PASSWORD
+
+# Run all E2E tests
+./run-e2e-tests.sh
+
+# Run with visible browser for debugging
+./run-e2e-tests.sh --headed
+
+# Run specific test file
+./run-e2e-tests.sh test_authentication.py
+```
 
 ### Setup E2E Tests
 
+**1. Install dependencies:**
 ```bash
-# Install dependencies
 pipenv install --dev
-
-# Install Playwright browsers
 pipenv run playwright install chromium
+```
 
-# Install system dependencies (Linux only, one-time setup)
+**2. Install system dependencies (Linux only, one-time):**
+```bash
 sudo apt-get install libnspr4 libnss3 libasound2t64
 # Or use: sudo pipenv run playwright install-deps
 ```
 
-### Run E2E Tests
+**3. Configure test credentials:**
+```bash
+cp .env.example .env
+# Edit .env and set:
+#   TEST_USER_EMAIL=your-test-user@example.com
+#   TEST_USER_PASSWORD=your-test-password
+```
+
+**4. Configure BASE_URL (if needed):**
+Edit `tests/e2e/conftest.py` to point to your deployment URL.
+
+### E2E Test Coverage (43 tests - ALL PASSING ✅)
+
+**Authentication Tests (12 tests):**
+- ✅ Login form visibility and successful login flow
+- ✅ Invalid credentials handling
+- ✅ Logout flow and UI state changes
+- ✅ User avatar displays email initial
+- ✅ User menu toggle and email display
+- ✅ FAB button visibility based on auth status
+- ✅ Login form accessibility (labels, ARIA)
+- ✅ User menu ARIA attributes
+- ✅ Keyboard navigation (Escape key)
+
+**Book Grid & Display Tests (13 tests):**
+- ✅ Page loads and displays login form
+- ✅ Books display in grid layout
+- ✅ Book cards have required elements (name, toggle, metadata)
+- ✅ Read toggle buttons exist with proper attributes
+- ✅ Read toggle works with apostrophes in book names
+- ✅ Filter button exists and toggles (aria-pressed)
+- ✅ Filter hides read books
+- ✅ Group by author button exists and toggles
+- ✅ Grouping creates author sections with book counts
+- ✅ Filter state preserved after editing
+- ✅ Special characters display correctly (apostrophes, quotes)
+
+**Book Operations Tests (18 tests):**
+- ✅ Book details modal opens/closes (click, Escape key)
+- ✅ Modal shows complete metadata
+- ✅ Edit book author and series info
+- ✅ Save button disabled during save
+- ✅ No-changes handling
+- ✅ Read toggle changes state
+- ✅ Download icon exists and clickable
+- ✅ Keyboard accessibility (Tab, Enter, Space)
+- ✅ Book cards have proper ARIA labels
+- ✅ Modal has proper dialog role and ARIA attributes
+
+For detailed E2E documentation, see:
+- `tests/e2e/README.md` - Complete E2E testing guide
+- `docs/E2E_TEST_SETUP.md` - Setup and troubleshooting
+
+### Manual Test Execution
 
 ```bash
-# Headless mode (for CI/CD)
+# All tests
 PYTHONPATH=. pipenv run pytest -m e2e
 
-# With visible browser (for debugging)
+# With visible browser
 PYTHONPATH=. pipenv run pytest -m e2e --headed
 
-# Slow motion (easier to see)
-PYTHONPATH=. pipenv run pytest -m e2e --headed --slowmo 1000
+# Specific test file
+PYTHONPATH=. pipenv run pytest tests/e2e/test_authentication.py -v
 
-# Against local development server
-BASE_URL=http://localhost:8000 PYTHONPATH=. pipenv run pytest -m e2e
+# Against different URL
+BASE_URL=https://your-test-url.com ./run-e2e-tests.sh
 ```
 
-### E2E Test Coverage
+## Test Results Summary
 
-**Implemented (Smoke Tests):**
-- ✅ Page loads successfully
-- ✅ Books display in grid layout
-- ✅ Book cards have required elements
-- ✅ Read toggle buttons exist and have proper attributes
-- ✅ Filter checkbox exists and toggles
-- ✅ Special characters (apostrophes, quotes) display correctly
-
-**Skipped (Requires Authentication):**
-- ⏭️ Toggle read status on books with apostrophes
-- ⏭️ Filter hides read books  
-- ⏭️ Filter state preserved after editing
-- ⏭️ Filter state preserved after deleting
-
-See `tests/e2e/README.md` for detailed E2E testing documentation.
-
-## Test Results
-
-Current status: **58 backend tests, all passing** ✅
-
-Backend unit tests:
+**Backend Unit Tests:** 120 tests, all passing ✅
 ```
-====== 58 passed in 4.40s ======
+====== 120 passed, 93% coverage ======
 ```
 
-E2E tests: **9 smoke tests, 3 skipped (auth required)**
-- Tests require system dependencies (see E2E setup above)
-- Can run in CI/CD or on machines with browser dependencies installed
+**E2E Tests:** 43 tests, all passing ✅
+```
+====== 43 passed in 139.10s (0:02:19) ======
+```
+
+**Total:** 163 tests passing

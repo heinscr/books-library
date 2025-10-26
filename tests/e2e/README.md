@@ -11,10 +11,10 @@ E2E tests verify the complete user experience by automating browser interactions
 
 ## Setup
 
-### Install Dependencies
+### 1. Install Dependencies
 
 ```bash
-# Install pytest-playwright
+# Install pytest-playwright (already in Pipfile)
 pipenv install --dev
 
 # Install Playwright browsers (only needed once)
@@ -30,9 +30,55 @@ sudo apt-get install libnspr4 libnss3 libasound2t64
 sudo pipenv run playwright install-deps
 ```
 
+### 2. Set Up Test Credentials
+
+E2E tests require a test user account for authentication. Set these environment variables:
+
+```bash
+export TEST_USER_EMAIL='your-test-user@example.com'
+export TEST_USER_PASSWORD='your-test-password'
+```
+
+**Note:** Use a dedicated test account, not a production account. The tests will:
+- Log in and out
+- Edit book metadata (then restore it)
+- Toggle read status on books
+
+To persist these for your session, add to your `.bashrc` or `.zshrc`:
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export TEST_USER_EMAIL='test@example.com'
+export TEST_USER_PASSWORD='testpassword123'
+```
+
 ## Running Tests
 
-### Run All E2E Tests
+### Quick Start (Using the Helper Script)
+
+```bash
+# Set credentials first (if not already in environment)
+export TEST_USER_EMAIL='your-test-user@example.com'
+export TEST_USER_PASSWORD='your-test-password'
+
+# Run all tests (headless)
+./run-e2e-tests.sh
+
+# Run with visible browser
+./run-e2e-tests.sh --headed
+
+# Run with slow motion for debugging
+./run-e2e-tests.sh --slow
+
+# Run specific test file
+./run-e2e-tests.sh test_authentication.py
+
+# Run with Playwright inspector (for debugging)
+./run-e2e-tests.sh --debug
+```
+
+### Manual Test Execution
+
+If you prefer to run tests manually without the script:
 
 ```bash
 # Headless (default, for CI/CD)
@@ -49,21 +95,28 @@ PYTHONPATH=. pipenv run pytest -m e2e --headed --slowmo 1000
 
 ```bash
 PYTHONPATH=. pipenv run pytest tests/e2e/test_book_grid.py -v
+PYTHONPATH=. pipenv run pytest tests/e2e/test_authentication.py -v
+PYTHONPATH=. pipenv run pytest tests/e2e/test_book_operations.py -v
 ```
 
 ### Run Specific Test Cases
 
 ```bash
 PYTHONPATH=. pipenv run pytest tests/e2e/test_book_grid.py::TestBookGrid::test_page_loads -v
+PYTHONPATH=. pipenv run pytest tests/e2e/test_authentication.py::TestAuthentication::test_successful_login -v
 ```
 
 ### Run with Different Browsers
 
 ```bash
 # Firefox
-PYTHONPATH=. pipenv run pytest -m e2e --browser firefox
+./run-e2e-tests.sh --firefox
 
 # WebKit (Safari)
+./run-e2e-tests.sh --webkit
+
+# Or manually:
+PYTHONPATH=. pipenv run pytest -m e2e --browser firefox
 PYTHONPATH=. pipenv run pytest -m e2e --browser webkit
 ```
 
@@ -71,18 +124,28 @@ PYTHONPATH=. pipenv run pytest -m e2e --browser webkit
 
 ### Environment Variables
 
-- `BASE_URL`: Frontend URL (default: https://books.example.com)
-- `API_URL`: Backend API URL (default: production API)
+**Required:**
+- `TEST_USER_EMAIL`: Email address for test user account
+- `TEST_USER_PASSWORD`: Password for test user account
+
+**Optional:**
+- `BASE_URL`: Frontend URL (default: configured in conftest.py)
+- `API_URL`: Backend API URL (default: configured in conftest.py)
 
 Example for local testing:
 ```bash
-BASE_URL=http://localhost:8000 PYTHONPATH=. pipenv run pytest -m e2e
+export TEST_USER_EMAIL='test@example.com'
+export TEST_USER_PASSWORD='testpass123'
+export BASE_URL='http://localhost:8000'
+PYTHONPATH=. pipenv run pytest -m e2e
 ```
 
 ### Test Organization
 
 Tests are organized by feature/functionality:
-- `test_book_grid.py`: Book display, grid layout, filtering
+- `test_authentication.py`: Login, logout, session management, auth UI
+- `test_book_grid.py`: Book display, grid layout, filtering, grouping
+- `test_book_operations.py`: Book details modal, editing, read toggle, download, accessibility
 - More test files can be added as needed
 
 ## Writing Tests
@@ -140,47 +203,93 @@ page.wait_for_timeout(500)  # Wait for animation/API call
 
 ## Current Test Coverage
 
-### ✅ Implemented (Basic Smoke Tests)
+### ✅ Implemented Tests
+
+**Authentication (test_authentication.py):**
+- Login form visibility
+- Successful login flow
+- Invalid credentials handling
+- Logout flow
+- User avatar displays email initial
+- User menu displays email
+- User menu toggle functionality
+- FAB button visibility (admin vs non-admin)
+- Login form accessibility (labels, ARIA)
+- User menu ARIA attributes
+- Keyboard navigation (Escape key)
+
+**Book Grid & Display (test_book_grid.py):**
 - Page loads successfully
 - Books display in grid
 - Book cards have required elements
 - Read toggle buttons exist and have proper attributes
+- Toggle read status on books with apostrophes
 - Filter checkbox exists and toggles
+- Filter hides read books (with auth)
+- Filter state preserved after editing (with auth)
 - Group by author checkbox exists and toggles
 - Group by author creates author sections
 - Author sections show book counts
 - Special characters (apostrophes, quotes) display correctly
 
-### 🚧 Skipped (Requires Authentication)
-- Toggle read status on books with apostrophes
-- Filter hides read books
-- Filter state preserved after editing
-- Filter state preserved after deleting
+**Book Operations (test_book_operations.py):**
+- Book details modal opens on click
+- Modal shows complete metadata
+- Modal closes on close button
+- Modal closes on Escape key
+- Edit book author
+- Edit book series info
+- Save button disabled during save
+- No changes shows info message
+- Read toggle changes state
+- Download icon exists and is clickable
+- Book cards keyboard accessible (tabindex, role, aria-label)
+- Book card opens on Enter key
+- Book card opens on Space key
+- Modal has proper dialog role and ARIA attributes
 
-### 📋 To Be Added
-- Authentication flow tests
-- Book upload tests
+### 📋 Future Enhancements
+- Book upload flow tests
 - Book deletion tests
-- Author editing tests
-- Download functionality tests
-- Error handling tests
-- Mobile/responsive tests
+- Error handling and edge cases
+- Mobile/responsive layout tests
+- Performance tests (load time, animations)
+- Cross-browser compatibility tests
 
 ## Authentication in Tests
 
-Many tests require authentication to modify data. To implement auth tests:
+Tests use the `authenticated_page` fixture to handle authentication automatically.
 
-1. **Option A: Mock Authentication**
-   - Store valid tokens in environment variables
-   - Set tokens in browser's localStorage before tests
+### How It Works
 
-2. **Option B: Test User Flow**
-   - Create a test Cognito user
-   - Automate the login flow in tests
+1. **Test Credentials**: Set via environment variables (`TEST_USER_EMAIL`, `TEST_USER_PASSWORD`)
+2. **Fixture**: The `authenticated_page` fixture automatically:
+   - Navigates to the site
+   - Fills in login credentials
+   - Waits for authentication to complete
+   - Returns the authenticated page object
 
-3. **Option C: Separate Auth Tests**
-   - Keep destructive tests separate
-   - Run against a test environment only
+### Using Authenticated Tests
+
+```python
+@pytest.mark.e2e
+class TestMyFeature:
+    def test_something_requiring_auth(self, authenticated_page):
+        """Test that requires a logged-in user."""
+        page = authenticated_page
+
+        # Page is already logged in and ready
+        page.locator(".some-element").click()
+        # ... rest of test
+```
+
+### Test User Requirements
+
+Your test user should:
+- Be a valid Cognito user in the user pool
+- Have access to view and edit books
+- Ideally be an admin user to test all features (upload, delete)
+- NOT be a production user with important data
 
 ## CI/CD Integration
 

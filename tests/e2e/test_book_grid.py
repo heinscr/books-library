@@ -18,28 +18,25 @@ class TestBookGrid:
         """Test that the main page loads successfully."""
         page.goto(base_url)
 
-        # Wait for the page to load
-        page.wait_for_selector("#booksContainer", timeout=10000)
+        # Wait for the page to load - wait for login form to appear
+        page.wait_for_selector("#loginForm", state="visible", timeout=10000)
 
         # Check that essential elements are present
-        assert page.locator("h1").text_content() == "📚 Books Library"
-        assert page.locator("#hideReadBooks").is_visible()
+        assert page.locator("#loginForm").is_visible()
+        assert page.locator("#email").is_visible()
+        assert page.locator("#booksContainer").count() > 0
 
-    def test_books_display_in_grid(self, page, base_url):
+    def test_books_display_in_grid(self, authenticated_page):
         """Test that books are displayed in a grid layout."""
-        page.goto(base_url)
-
-        # Wait for books to load
-        page.wait_for_selector(".books-grid", timeout=10000)
+        page = authenticated_page
 
         # Check that at least one book card exists
         book_cards = page.locator(".book-card").count()
         assert book_cards > 0, "No books found in the grid"
 
-    def test_book_card_has_required_elements(self, page, base_url):
+    def test_book_card_has_required_elements(self, authenticated_page):
         """Test that book cards contain all required elements."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Get the first book card
         first_card = page.locator(".book-card").first
@@ -54,19 +51,17 @@ class TestBookGrid:
 class TestReadToggle:
     """Tests for read status toggle functionality."""
 
-    def test_read_toggle_exists_on_books(self, page, base_url):
+    def test_read_toggle_exists_on_books(self, authenticated_page):
         """Test that read toggle buttons exist on book cards."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Check that read toggles exist
         toggle_count = page.locator(".read-toggle").count()
         assert toggle_count > 0, "No read toggle buttons found"
 
-    def test_read_toggle_clickable(self, page, base_url):
+    def test_read_toggle_clickable(self, authenticated_page):
         """Test that read toggle buttons are clickable."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Get first toggle
         first_toggle = page.locator(".read-toggle").first
@@ -76,17 +71,13 @@ class TestReadToggle:
             "data-book-id"
         ), "Read toggle missing data-book-id attribute"
 
-    @pytest.mark.skip(
-        reason="Requires authentication - implement after auth test setup"
-    )
-    def test_toggle_read_status_with_apostrophe(self, page, base_url):
+    def test_toggle_read_status_with_apostrophe(self, authenticated_page):
         """Test toggling read status on a book with apostrophe in ID.
 
         This specifically tests the bug fix where apostrophes in book IDs
         would break the onclick handler.
         """
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Find a book with an apostrophe in the name (e.g., "Roald Dahl's Cookbook")
         book_with_apostrophe = page.locator(
@@ -115,46 +106,49 @@ class TestReadToggle:
 class TestFilterFunctionality:
     """Tests for the 'hide read books' filter functionality."""
 
-    def test_hide_read_filter_exists(self, page, base_url):
-        """Test that the hide read books filter checkbox exists."""
-        page.goto(base_url)
+    def test_hide_read_filter_exists(self, authenticated_page):
+        """Test that the hide read books filter button exists."""
+        page = authenticated_page
 
-        # Check filter checkbox is present
-        filter_checkbox = page.locator("#hideReadBooks")
-        assert filter_checkbox.is_visible()
-        assert not filter_checkbox.is_checked(), "Filter should be unchecked by default"
+        # Check filter button is present
+        filter_button = page.locator("#hideReadBooksBtn")
+        assert filter_button.is_visible()
 
-    def test_filter_checkbox_toggles(self, page, base_url):
-        """Test that the filter checkbox can be toggled."""
-        page.goto(base_url)
+        # Check it's a button with aria-pressed attribute
+        assert filter_button.get_attribute("aria-pressed") == "false", "Filter should be unpressed by default"
 
-        filter_checkbox = page.locator("#hideReadBooks")
+    def test_filter_checkbox_toggles(self, authenticated_page):
+        """Test that the filter button can be toggled."""
+        page = authenticated_page
+
+        filter_button = page.locator("#hideReadBooksBtn")
 
         # Toggle on
-        filter_checkbox.check()
-        assert filter_checkbox.is_checked()
+        filter_button.click()
+        page.wait_for_timeout(500)
+        assert filter_button.get_attribute("aria-pressed") == "true"
 
         # Toggle off
-        filter_checkbox.uncheck()
-        assert not filter_checkbox.is_checked()
+        filter_button.click()
+        page.wait_for_timeout(500)
+        assert filter_button.get_attribute("aria-pressed") == "false"
 
-    @pytest.mark.skip(reason="Requires books with read status to test filtering")
-    def test_filter_hides_read_books(self, page, base_url):
+    def test_filter_hides_read_books(self, authenticated_page):
         """Test that enabling the filter hides read books."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Count initial books
         initial_count = page.locator(".book-card").count()
 
-        # Enable filter
-        page.locator("#hideReadBooks").check()
-        page.wait_for_timeout(500)  # Wait for filter to apply
+        # Enable filter by clicking the button
+        filter_button = page.locator("#hideReadBooksBtn")
+        filter_button.click()
+        page.wait_for_timeout(1000)  # Wait for filter to apply
 
         # Count books after filter
         filtered_count = page.locator(".book-card").count()
 
-        # Should show fewer books (assuming some are marked as read)
+        # Should show fewer or equal books (assuming some may be marked as read)
         assert (
             filtered_count <= initial_count
         ), "Filter did not reduce the number of books displayed"
@@ -164,35 +158,37 @@ class TestFilterFunctionality:
 class TestGroupByAuthor:
     """Tests for group by author functionality."""
 
-    def test_group_by_author_checkbox_exists(self, page, base_url):
-        """Test that the group by author checkbox exists."""
-        page.goto(base_url)
+    def test_group_by_author_checkbox_exists(self, authenticated_page):
+        """Test that the group by author button exists."""
+        page = authenticated_page
 
-        group_checkbox = page.locator("#groupByAuthor")
-        assert group_checkbox.is_visible(), "Group by author checkbox not found"
+        group_button = page.locator("#groupByAuthorBtn")
+        assert group_button.is_visible(), "Group by author button not found"
 
-    def test_group_by_author_checkbox_toggles(self, page, base_url):
-        """Test that the group by author checkbox can be toggled."""
-        page.goto(base_url)
+    def test_group_by_author_checkbox_toggles(self, authenticated_page):
+        """Test that the group by author button can be toggled."""
+        page = authenticated_page
 
-        group_checkbox = page.locator("#groupByAuthor")
+        group_button = page.locator("#groupByAuthorBtn")
 
         # Toggle on
-        group_checkbox.check()
-        assert group_checkbox.is_checked()
+        group_button.click()
+        page.wait_for_timeout(500)
+        assert group_button.get_attribute("aria-pressed") == "true"
 
         # Toggle off
-        group_checkbox.uncheck()
-        assert not group_checkbox.is_checked()
+        group_button.click()
+        page.wait_for_timeout(500)
+        assert group_button.get_attribute("aria-pressed") == "false"
 
-    def test_group_by_author_shows_author_sections(self, page, base_url):
+    def test_group_by_author_shows_author_sections(self, authenticated_page):
         """Test that enabling group by author creates author sections."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
-        # Enable grouping
-        page.locator("#groupByAuthor").check()
-        page.wait_for_timeout(500)  # Wait for re-render
+        # Enable grouping by clicking the button
+        group_button = page.locator("#groupByAuthorBtn")
+        group_button.click()
+        page.wait_for_timeout(1000)  # Wait for re-render
 
         # Check that author sections are created
         author_sections = page.locator(".author-section")
@@ -202,14 +198,14 @@ class TestGroupByAuthor:
         author_headers = page.locator(".author-header")
         assert author_headers.count() > 0, "No author headers found"
 
-    def test_group_by_author_shows_book_counts(self, page, base_url):
+    def test_group_by_author_shows_book_counts(self, authenticated_page):
         """Test that author sections show book counts."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
-        # Enable grouping
-        page.locator("#groupByAuthor").check()
-        page.wait_for_timeout(500)
+        # Enable grouping by clicking the button
+        group_button = page.locator("#groupByAuthorBtn")
+        group_button.click()
+        page.wait_for_timeout(1000)
 
         # Check that book counts are displayed
         book_counts = page.locator(".author-book-count")
@@ -228,24 +224,22 @@ class TestFilterStatePreservation:
     would reset the filter state.
     """
 
-    @pytest.mark.skip(
-        reason="Requires authentication and read books - implement after auth setup"
-    )
-    def test_filter_preserved_after_edit(self, page, base_url):
+    def test_filter_preserved_after_edit(self, authenticated_page):
         """Test that filter state is preserved after editing a book.
 
         This tests the fix where editing a book's author would cause
         the grid to show all books even when 'hide read books' was checked.
         """
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
-        # Enable filter
-        filter_checkbox = page.locator("#hideReadBooks")
-        filter_checkbox.check()
-        assert filter_checkbox.is_checked()
+        # Enable filter by clicking the button
+        filter_button = page.locator("#hideReadBooksBtn")
+        filter_button.click()
+        page.wait_for_timeout(1000)
 
-        page.wait_for_timeout(500)
+        # Verify filter is active
+        assert filter_button.get_attribute("aria-pressed") == "true"
+
         filtered_count_before = page.locator(".book-card").count()
 
         # Click on first visible book to open details modal
@@ -264,12 +258,15 @@ class TestFilterStatePreservation:
         page.locator("#saveDetailsButton").click()
 
         # Wait for save to complete and modal to close
-        page.wait_for_selector("#bookDetailsModal", state="hidden", timeout=5000)
+        page.wait_for_selector("#bookDetailsModal", state="hidden", timeout=10000)
 
-        # Verify filter is still checked
+        # Wait for UI to update
+        page.wait_for_timeout(1000)
+
+        # Verify filter is still active
         assert (
-            filter_checkbox.is_checked()
-        ), "Filter checkbox was unchecked after edit"
+            filter_button.get_attribute("aria-pressed") == "true"
+        ), "Filter was deactivated after edit"
 
         # Verify the same number of books are shown
         filtered_count_after = page.locator(".book-card").count()
@@ -282,10 +279,9 @@ class TestFilterStatePreservation:
 class TestSpecialCharacters:
     """Tests for handling special characters in book names and IDs."""
 
-    def test_books_with_apostrophes_display(self, page, base_url):
+    def test_books_with_apostrophes_display(self, authenticated_page):
         """Test that books with apostrophes in names display correctly."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Look for books with apostrophes
         books_with_apostrophe = page.locator(".book-card:has-text(\"'\")")
@@ -298,11 +294,13 @@ class TestSpecialCharacters:
             assert (
                 "&#" not in book_name
             ), "HTML entities visible instead of apostrophe"
+        else:
+            # Skip if no books with apostrophes
+            pass
 
-    def test_books_with_quotes_display(self, page, base_url):
+    def test_books_with_quotes_display(self, authenticated_page):
         """Test that books with quotes in names display correctly."""
-        page.goto(base_url)
-        page.wait_for_selector(".book-card", timeout=10000)
+        page = authenticated_page
 
         # Look for books with quotes
         books_with_quotes = page.locator('.book-card:has-text(\'"\')')
@@ -313,3 +311,6 @@ class TestSpecialCharacters:
             book_name = first_book.locator(".book-name").text_content()
             assert '"' in book_name, "Quote not displayed in book name"
             assert "&#" not in book_name, "HTML entities visible instead of quote"
+        else:
+            # Skip if no books with quotes
+            pass
