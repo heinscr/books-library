@@ -13,13 +13,15 @@ let filterState = {
 function toggleFilter(filterName) {
     filterState[filterName] = !filterState[filterName];
 
-    // Update button active state
+    // Update button active state and ARIA pressed attribute
     const btn = document.getElementById(filterName + 'Btn');
     if (btn) {
         if (filterState[filterName]) {
             btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
         } else {
             btn.classList.remove('active');
+            btn.setAttribute('aria-pressed', 'false');
         }
     }
 
@@ -69,6 +71,24 @@ function applyFilters() {
 
     if (message) {
         showAlert(message, 'info');
+    }
+
+    // Announce to screen readers
+    announceToScreenReader(message || `Displaying ${filteredBooks.length} books`);
+}
+
+/**
+ * Announce dynamic content changes to screen readers
+ * @param {string} message - Message to announce
+ */
+function announceToScreenReader(message) {
+    const srAnnouncements = document.getElementById('srAnnouncements');
+    if (srAnnouncements) {
+        srAnnouncements.textContent = message;
+        // Clear after announcement is made
+        setTimeout(() => {
+            srAnnouncements.textContent = '';
+        }, 1000);
     }
 }
 

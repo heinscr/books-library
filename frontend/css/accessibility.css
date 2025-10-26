@@ -1,0 +1,226 @@
+/**
+ * Accessibility Styles
+ * Improves keyboard navigation, screen reader support, and focus indicators
+ */
+
+/* Screen reader only text (visually hidden but available to screen readers) */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Skip to main content link for keyboard navigation */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: #333;
+    color: white;
+    padding: 8px 16px;
+    text-decoration: none;
+    border-radius: 0 0 4px 0;
+    z-index: 10000;
+    font-weight: 600;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* Enhanced focus indicators for better visibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.filter-icon-btn:focus-visible,
+.fab-upload:focus-visible {
+    outline: 3px solid #4a9eff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(74, 158, 255, 0.2);
+}
+
+/* Focus for modal close buttons */
+.close-btn:focus-visible {
+    outline: 3px solid #4a9eff;
+    outline-offset: 2px;
+    background-color: rgba(244, 232, 208, 0.15);
+}
+
+/* Focus for book cards */
+.book-card:focus-visible {
+    outline: 3px solid #4a9eff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(74, 158, 255, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+/* Focus for interactive elements in book cards */
+.read-toggle:focus-visible {
+    outline: 3px solid #4a9eff;
+    outline-offset: 2px;
+}
+
+/* Remove outline: none anti-patterns and replace with proper focus styles */
+input:focus,
+button:focus,
+a:focus {
+    outline: none; /* Remove default */
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible {
+        outline: 4px solid currentColor;
+        outline-offset: 3px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .spinner {
+        animation: none;
+        border: 3px solid #f4e8d0;
+        border-top-color: #8b7355;
+    }
+}
+
+/* Keyboard-only focus (hide mouse click focus) */
+.js-focus-visible :focus:not(.focus-visible) {
+    outline: none;
+}
+
+/* Loading state should be announced to screen readers */
+.loading[aria-live="polite"] {
+    /* Ensure loading states are announced */
+}
+
+/* Alert should be announced to screen readers */
+.alert[role="alert"] {
+    /* Ensure alerts are announced */
+}
+
+/* Modal should trap focus and be announced */
+.modal[role="dialog"] {
+    /* Modals are properly announced */
+}
+
+/* Improve button touch targets for mobile (minimum 44x44px) */
+@media (hover: none) and (pointer: coarse) {
+    button,
+    .filter-icon-btn,
+    .close-btn,
+    .read-toggle {
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* Focus trap visualization (for debugging) */
+[data-focus-trap] {
+    position: relative;
+}
+
+/* Ensure sufficient color contrast for text */
+.field-hint,
+.detail-value {
+    color: #666; /* Ensure at least 4.5:1 contrast ratio */
+}
+
+/* Dark text on light backgrounds for better readability */
+.modal-content,
+.book-card {
+    color: #2c2c2c;
+}
+
+/* High visibility for interactive states */
+button:hover:not(:disabled),
+.filter-icon-btn:hover,
+.read-toggle:hover {
+    filter: brightness(1.1);
+}
+
+button:active:not(:disabled),
+.filter-icon-btn:active {
+    transform: scale(0.98);
+}
+
+/* Disabled state should be clearly indicated */
+button:disabled,
+input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Loading spinner should have aria-label */
+.spinner[aria-label] {
+    /* Spinner is properly labeled */
+}
+
+/* Ensure clickable areas are obvious on keyboard navigation */
+a, button, .book-card, .filter-icon-btn {
+    position: relative;
+}
+
+/* Improve visibility of selected/active filter buttons */
+.filter-icon-btn.active {
+    box-shadow: 0 0 0 2px #4a9eff;
+}
+
+/* Screen reader announcements for dynamic content */
+.sr-announcement {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Ensure form labels are associated with inputs */
+label {
+    cursor: pointer;
+}
+
+/* Better visibility for required fields */
+label.required::after {
+    content: " *";
+    color: #d32f2f;
+}
+
+/* Error states should be clearly visible and announced */
+input[aria-invalid="true"] {
+    border-color: #d32f2f;
+    box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.2);
+}
+
+.error-message {
+    color: #d32f2f;
+    font-size: 0.875rem;
+    margin-top: 4px;
+}
+
+/* Success states */
+input[aria-invalid="false"] {
+    border-color: #4caf50;
+}
+
+/* Focus within containers */
+.modal-content:focus-within,
+.search-and-filters:focus-within {
+    /* Container has focused element */
+}

@@ -6,11 +6,17 @@
 function createBookCard(book) {
     const bookCard = document.createElement('div');
     bookCard.className = 'book-card';
-    
+
+    // Make card keyboard accessible
+    bookCard.setAttribute('tabindex', '0');
+    bookCard.setAttribute('role', 'button');
+    bookCard.setAttribute('aria-label', `Book: ${book.name}${book.author ? ' by ' + book.author : ''}`);
+
     // Check if book is marked as read (from backend)
     const isRead = book.read || false;
     if (isRead) {
         bookCard.classList.add('read');
+        bookCard.setAttribute('aria-label', `${bookCard.getAttribute('aria-label')} (read)`);
     }
     
     // Format date
@@ -28,15 +34,15 @@ function createBookCard(book) {
     let coverHTML = '';
     if (book.coverImageUrl) {
         coverHTML = `
-            <div class="book-cover">
+            <div class="book-cover" aria-hidden="true">
                 <img src="${escapeHtml(book.coverImageUrl)}"
-                     alt="Cover of ${escapeHtml(book.name)}"
+                     alt=""
                      onerror="this.parentElement.classList.add('no-cover'); this.style.display='none';">
             </div>
         `;
     } else {
         coverHTML = `
-            <div class="book-cover no-cover">
+            <div class="book-cover no-cover" aria-hidden="true">
             </div>
         `;
     }
@@ -45,41 +51,44 @@ function createBookCard(book) {
     let bookInfo = coverHTML + `
         <div class="book-info-content">
             <div class="book-header">
-                <div class="book-name">${escapeHtml(book.name)}</div>
-                <div class="read-toggle ${isRead ? 'read' : ''}" data-book-id="" title="${isRead ? 'Mark as unread' : 'Mark as read'}">
-                    ${isRead ? '✓' : '○'}
-                </div>
+                <div class="book-name" aria-hidden="true">${escapeHtml(book.name)}</div>
+                <button class="read-toggle ${isRead ? 'read' : ''}"
+                        data-book-id=""
+                        aria-label="${isRead ? 'Mark as unread' : 'Mark as read'}"
+                        title="${isRead ? 'Mark as unread' : 'Mark as read'}">
+                    <span aria-hidden="true">${isRead ? '✓' : '○'}</span>
+                </button>
             </div>
     `;
     
     // Add author if available
     if (book.author) {
         bookInfo += `
-            <div class="book-author">
-                ✍️ ${escapeHtml(book.author)}
+            <div class="book-author" aria-hidden="true">
+                <span aria-hidden="true">✍️</span> ${escapeHtml(book.author)}
             </div>
         `;
     }
-    
+
     // Add series info if available
     if (book.series_name) {
-        const seriesText = book.series_order 
+        const seriesText = book.series_order
             ? `${escapeHtml(book.series_name)} #${book.series_order}`
             : escapeHtml(book.series_name);
         bookInfo += `
-            <div class="book-series">
-                📚 ${seriesText}
+            <div class="book-series" aria-hidden="true">
+                <span aria-hidden="true">📚</span> ${seriesText}
             </div>
         `;
     }
-    
+
     bookInfo += `
-            <div class="book-meta">
-                <div class="book-size">📦 ${sizeInMB} MB</div>
-                <div class="book-date">📅 ${formattedDate}</div>
+            <div class="book-meta" aria-hidden="true">
+                <div class="book-size"><span aria-hidden="true">📦</span> ${sizeInMB} MB</div>
+                <div class="book-date"><span aria-hidden="true">📅</span> ${formattedDate}</div>
             </div>
-            <div class="book-download">
-                <span class="download-icon">⬇️</span>
+            <div class="book-download" aria-hidden="true">
+                <span class="download-icon" aria-hidden="true">⬇️</span>
             </div>
         </div>
     `;
@@ -109,6 +118,7 @@ function createBookCard(book) {
         // Handle read toggle click
         const readToggle = e.target.closest('.read-toggle');
         if (readToggle) {
+            e.stopPropagation(); // Prevent card click
             const bookId = readToggle.getAttribute('data-book-id');
             if (!bookId) {
                 console.error('Read toggle clicked but data-book-id is empty or null');
@@ -118,17 +128,25 @@ function createBookCard(book) {
             toggleReadStatus(bookId, e);
             return;
         }
-        
+
         // Don't open modal if clicking the download icon
         if (e.target.closest('.book-download')) {
             downloadBook(book.id);
             return;
         }
-        
+
         // Open details modal for any other click
         showBookDetailsModal(book);
     });
-    
+
+    // Add keyboard handler for Enter/Space on the card
+    bookCard.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            showBookDetailsModal(book);
+        }
+    });
+
     return bookCard;
 }
 

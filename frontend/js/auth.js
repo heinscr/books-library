@@ -216,7 +216,7 @@ function showLoggedOutState() {
     document.getElementById('userAvatar').style.display = 'none';
     document.getElementById('controlsRow').style.display = 'none';
     allBooks = [];
-    
+
     // Reset login button state
     const loginBtn = document.querySelector('.login-btn');
     if (loginBtn) {
@@ -224,4 +224,46 @@ function showLoggedOutState() {
         loginBtn.textContent = 'Login';
     }
 }
+
+/**
+ * Toggle user menu dropdown and update ARIA state
+ */
+function toggleUserMenu() {
+    const userMenu = document.getElementById('userMenu');
+    const userAvatar = document.getElementById('userAvatar');
+    const isShown = userMenu.classList.toggle('show');
+
+    // Update ARIA expanded state
+    if (userAvatar) {
+        userAvatar.setAttribute('aria-expanded', isShown ? 'true' : 'false');
+    }
+}
+
+// Close user menu when clicking outside
+document.addEventListener('click', function(event) {
+    const userMenu = document.getElementById('userMenu');
+    const userAvatar = document.getElementById('userAvatar');
+
+    if (userMenu && userAvatar) {
+        if (!userAvatar.contains(event.target) && !userMenu.contains(event.target)) {
+            userMenu.classList.remove('show');
+            userAvatar.setAttribute('aria-expanded', 'false');
+        }
+    }
+});
+
+// Close user menu on Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        const userMenu = document.getElementById('userMenu');
+        const userAvatar = document.getElementById('userAvatar');
+        if (userMenu && userMenu.classList.contains('show')) {
+            userMenu.classList.remove('show');
+            if (userAvatar) {
+                userAvatar.setAttribute('aria-expanded', 'false');
+                userAvatar.focus(); // Return focus to button
+            }
+        }
+    }
+});
 

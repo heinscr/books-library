@@ -104,6 +104,8 @@
     font-size: 18px;
     flex-shrink: 0;
     margin-left: 10px;
+    padding: 0;
+    outline: none;
 }
 
 .read-toggle:hover {
@@ -115,6 +117,13 @@
     background: #28a745;
     border-color: #28a745;
     color: white;
+}
+
+/* Enhanced focus for keyboard navigation - override base styles */
+.read-toggle:focus-visible {
+    outline: 3px solid #4a9eff;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(74, 158, 255, 0.2);
 }
 
 .book-meta {

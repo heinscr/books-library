@@ -7,10 +7,10 @@ let currentEditingBook = null;
 
 function showBookDetailsModal(book) {
     currentEditingBook = book;
-    
+
     // Populate modal with book details
     document.getElementById('detailTitle').textContent = book.name || 'Unknown';
-    
+
     // Format date
     if (book.created) {
         const date = new Date(book.created);
@@ -25,26 +25,26 @@ function showBookDetailsModal(book) {
     } else {
         document.getElementById('detailDate').textContent = 'Unknown';
     }
-    
+
     // Format file size
     if (book.size) {
         const sizeInMB = (book.size / (1024 * 1024)).toFixed(2);
         const sizeInGB = (book.size / (1024 * 1024 * 1024)).toFixed(2);
-        const displaySize = book.size > 1024 * 1024 * 1024 
-            ? `${sizeInGB} GB` 
+        const displaySize = book.size > 1024 * 1024 * 1024
+            ? `${sizeInGB} GB`
             : `${sizeInMB} MB`;
         document.getElementById('detailSize').textContent = displaySize;
     } else {
         document.getElementById('detailSize').textContent = 'Unknown';
     }
-    
+
     // Set author field
     document.getElementById('editAuthor').value = book.author || '';
-    
+
     // Set series fields
     document.getElementById('editSeriesName').value = book.series_name || '';
     document.getElementById('editSeriesOrder').value = book.series_order || '';
-    
+
     // Show/hide delete button based on admin status
     const deleteButton = document.getElementById('deleteBookButton');
     if (window.isUserAdmin) {
@@ -52,20 +52,38 @@ function showBookDetailsModal(book) {
     } else {
         deleteButton.style.display = 'none';
     }
-    
+
     // Show modal
-    document.getElementById('bookDetailsModal').style.display = 'flex';
+    const modal = document.getElementById('bookDetailsModal');
+    modal.style.display = 'flex';
+
+    // Store element that had focus before modal opened
+    window.lastFocusedElement = document.activeElement;
+
+    // Focus the author input when modal opens
+    setTimeout(() => {
+        document.getElementById('editAuthor').focus();
+    }, 100);
+
+    // Set up focus trapping
+    setupModalFocusTrap('bookDetailsModal');
 }
 
 function closeBookDetailsModal() {
     document.getElementById('bookDetailsModal').style.display = 'none';
     currentEditingBook = null;
-    
+
     // Reset delete button state
     const deleteButton = document.getElementById('deleteBookButton');
     if (deleteButton) {
         deleteButton.disabled = false;
         deleteButton.textContent = '🗑️ Delete Book';
+    }
+
+    // Return focus to element that opened the modal
+    if (window.lastFocusedElement) {
+        window.lastFocusedElement.focus();
+        window.lastFocusedElement = null;
     }
 }
 

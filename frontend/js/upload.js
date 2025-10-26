@@ -11,8 +11,10 @@ function showUploadModal() {
         showAlert('❌ Only administrators can upload books', 'error');
         return;
     }
-    
-    document.getElementById('uploadModal').style.display = 'flex';
+
+    const modal = document.getElementById('uploadModal');
+    modal.style.display = 'flex';
+
     // Reset form
     document.getElementById('bookFile').value = '';
     document.getElementById('authorName').value = '';
@@ -20,10 +22,27 @@ function showUploadModal() {
     document.getElementById('uploadButton').disabled = true;
     document.getElementById('uploadProgress').style.display = 'none';
     selectedFile = null;
+
+    // Store element that had focus before modal opened
+    window.lastFocusedElement = document.activeElement;
+
+    // Focus the file input when modal opens
+    setTimeout(() => {
+        document.getElementById('bookFile').focus();
+    }, 100);
+
+    // Set up focus trapping
+    setupModalFocusTrap('uploadModal');
 }
 
 function closeUploadModal() {
     document.getElementById('uploadModal').style.display = 'none';
+
+    // Return focus to element that opened the modal
+    if (window.lastFocusedElement) {
+        window.lastFocusedElement.focus();
+        window.lastFocusedElement = null;
+    }
 }
 
 function handleFileSelect() {

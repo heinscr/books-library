@@ -4,77 +4,115 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Digital Library</title>
+    <meta name="description" content="Manage your digital book collection with cloud storage, metadata tracking, and reading progress">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/accessibility.css">
 </head>
 <body>
+    <!-- Skip to main content link for keyboard users -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <!-- Leather-bound header -->
-    <div class="header">
+    <header class="header" role="banner">
         <div class="header-content">
             <h1>📚 The Digital Library</h1>
-            
-            <div class="auth-widget">
+
+            <nav class="auth-widget" aria-label="User authentication">
                 <!-- Login form (shown when not authenticated) -->
-                <div id="loginForm" class="login-form">
-                    <input type="email" id="email" placeholder="Email" autocomplete="email">
-                    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-                    <button class="login-btn" onclick="login()">Enter</button>
-                </div>
-                
+                <form id="loginForm" class="login-form" onsubmit="login(); return false;" aria-label="Login form">
+                    <label for="email" class="sr-only">Email address</label>
+                    <input type="email" id="email" placeholder="Email" autocomplete="email" required aria-required="true" aria-label="Email address">
+                    <label for="password" class="sr-only">Password</label>
+                    <input type="password" id="password" placeholder="Password" autocomplete="current-password" required aria-required="true" aria-label="Password">
+                    <button type="submit" class="login-btn" aria-label="Sign in to your account">Enter</button>
+                </form>
+
                 <!-- User avatar (shown when authenticated) -->
-                <div id="userAvatar" class="user-avatar" style="display: none;" onclick="toggleUserMenu()">
-                    <span id="avatarInitial">U</span>
-                </div>
-                
+                <button id="userAvatar" class="user-avatar" style="display: none;" onclick="toggleUserMenu()" aria-label="User menu" aria-expanded="false" aria-haspopup="true">
+                    <span id="avatarInitial" aria-hidden="true">U</span>
+                </button>
+
                 <!-- User dropdown menu -->
-                <div id="userMenu" class="user-menu">
-                    <div class="user-menu-header">
+                <div id="userMenu" class="user-menu" role="menu" aria-label="User account menu">
+                    <div class="user-menu-header" role="presentation">
                         <div style="font-weight: 600; margin-bottom: 8px; color: #f4e8d0;">Signed in as</div>
                         <div class="user-menu-email" id="menuEmail"></div>
                     </div>
-                    <div class="user-menu-item logout" onclick="logout()">
-                        <span>🚪</span>
+                    <button class="user-menu-item logout" onclick="logout()" role="menuitem">
+                        <span aria-hidden="true">🚪</span>
                         <span>Logout</span>
-                    </div>
+                    </button>
                 </div>
-            </div>
+            </nav>
         </div>
-    </div>
+    </header>
 
     <!-- Main content -->
-    <div class="container">
+    <main id="main-content" class="container" role="main">
         <!-- Controls row (search and icon filters) -->
         <div id="controlsRow" class="controls-row" style="display: none;">
-            <div class="search-and-filters">
+            <div class="search-and-filters" role="search" aria-label="Search and filter books">
                 <div class="search-container">
-                    <input type="text" id="searchInput" placeholder="🔍 Search books, authors, or series..." oninput="applyFilters()">
+                    <label for="searchInput" class="sr-only">Search books, authors, or series</label>
+                    <input type="search"
+                           id="searchInput"
+                           placeholder="🔍 Search books, authors, or series..."
+                           oninput="applyFilters()"
+                           aria-label="Search books, authors, or series"
+                           aria-controls="booksContainer">
                 </div>
-                <button class="filter-icon-btn" id="hideReadBooksBtn" onclick="toggleFilter('hideReadBooks')" title="Hide read books">
-                    👁️
+                <button class="filter-icon-btn"
+                        id="hideReadBooksBtn"
+                        onclick="toggleFilter('hideReadBooks')"
+                        aria-label="Hide read books"
+                        aria-pressed="false"
+                        aria-controls="booksContainer">
+                    <span aria-hidden="true">👁️</span>
+                    <span class="sr-only">Hide read books</span>
                 </button>
-                <button class="filter-icon-btn" id="groupByAuthorBtn" onclick="toggleFilter('groupByAuthor')" title="Group by author">
-                    📚
+                <button class="filter-icon-btn"
+                        id="groupByAuthorBtn"
+                        onclick="toggleFilter('groupByAuthor')"
+                        aria-label="Group books by author"
+                        aria-pressed="false"
+                        aria-controls="booksContainer">
+                    <span aria-hidden="true">📚</span>
+                    <span class="sr-only">Group by author</span>
                 </button>
             </div>
         </div>
-        
-        <span id="loading" class="loading" style="display: none;">
-            <span class="spinner"></span>
+
+        <div id="loading" class="loading" style="display: none;" role="status" aria-live="polite">
+            <span class="spinner" aria-label="Loading"></span>
             <span>Loading collection...</span>
-        </span>
-        
-        <div id="alert" class="alert"></div>
-        
-        <div id="booksContainer"></div>
-    </div>
+        </div>
+
+        <div id="alert" class="alert" role="alert" aria-live="polite" aria-atomic="true"></div>
+
+        <div id="booksContainer" aria-live="polite" aria-relevant="additions removals"></div>
+
+        <!-- Screen reader announcements -->
+        <div class="sr-announcement" role="status" aria-live="polite" aria-atomic="true" id="srAnnouncements"></div>
+    </main>
 
     <!-- Upload Modal -->
-    <div id="uploadModal" class="modal" style="display: none;">
+    <div id="uploadModal"
+         class="modal"
+         style="display: none;"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="uploadModalTitle"
+         aria-describedby="uploadModalDesc">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Upload Book</h2>
-                <button class="close-btn" onclick="closeUploadModal()">&times;</button>
+                <h2 id="uploadModalTitle">Upload Book</h2>
+                <button class="close-btn"
+                        onclick="closeUploadModal()"
+                        aria-label="Close upload dialog">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
+            <p id="uploadModalDesc" class="sr-only">Upload a book file to your library with optional metadata</p>
             <div class="modal-body">
                 <div class="form-group">
                     <label for="bookFile">Select ZIP file:</label>
@@ -109,12 +147,23 @@
     </div>
 
     <!-- Book Details Modal -->
-    <div id="bookDetailsModal" class="modal" style="display: none;">
+    <div id="bookDetailsModal"
+         class="modal"
+         style="display: none;"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="bookDetailsModalTitle"
+         aria-describedby="bookDetailsModalDesc">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Book Details</h2>
-                <button class="close-btn" onclick="closeBookDetailsModal()">&times;</button>
+                <h2 id="bookDetailsModalTitle">Book Details</h2>
+                <button class="close-btn"
+                        onclick="closeBookDetailsModal()"
+                        aria-label="Close book details dialog">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
+            <p id="bookDetailsModalDesc" class="sr-only">View and edit book information and metadata</p>
             <div class="modal-body">
                 <div class="details-group">
                     <label>Title:</label>
@@ -155,11 +204,16 @@
     </div>
 
     <!-- Floating Action Button for Upload (Admin Only) -->
-    <button class="fab-upload" id="fabUpload" onclick="showUploadModal()" style="display: none;" title="Upload Book">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button class="fab-upload"
+            id="fabUpload"
+            onclick="showUploadModal()"
+            style="display: none;"
+            aria-label="Upload new book to library">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
+        <span class="sr-only">Upload Book</span>
     </button>
 
     <!-- Load configuration -->
@@ -193,7 +247,10 @@
     <!-- 9. Book details (depends on auth, api, ui, filters) -->
     <script src="js/bookDetails.js?v=3"></script>
 
-    <!-- 10. Main application orchestrator (depends on all modules) -->
+    <!-- 10. Accessibility utilities (keyboard navigation, focus management) -->
+    <script src="js/accessibility.js?v=3"></script>
+
+    <!-- 11. Main application orchestrator (depends on all modules) -->
     <script src="app.js?v=3"></script>
 </body>
 </html>
