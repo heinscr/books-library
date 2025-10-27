@@ -1,0 +1,19 @@
+# Deployment Configuration Example
+# Copy this file to .deploy-config and update with your values
+
+# AWS Configuration
+AWS_PROFILE=your-aws-profile
+AWS_REGION=us-east-2
+
+# S3 Buckets
+FRONTEND_BUCKET=your-frontend-bucket
+FRONTEND_PATH=books-app
+BOOKS_BUCKET=your-books-bucket
+
+# CloudFront Distributions
+CLOUDFRONT_DIST_1=YOUR_DISTRIBUTION_ID_1
+CLOUDFRONT_DIST_2=YOUR_DISTRIBUTION_ID_2
+CLOUDFRONT_URL=https://your-distribution.cloudfront.net
+
+# Deployment Options
+AUTO_INVALIDATE=true

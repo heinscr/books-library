@@ -178,6 +178,27 @@ make create-admin-user AWS_PROFILE=your-profile
 
 See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-by-step guide.
 
+### Deploying Updates
+
+After initial setup, use the unified deployment script for consistent deployments:
+
+```bash
+# Setup (one-time)
+cp .deploy-config.example .deploy-config
+# Edit .deploy-config with your AWS settings
+
+# Deploy frontend changes
+./scripts/deploy.sh --frontend --invalidate
+
+# Deploy backend changes
+./scripts/deploy.sh --backend
+
+# Deploy everything
+./scripts/deploy.sh --all --invalidate
+```
+
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the complete deployment guide.
+
 ### Runtime & Dependencies
 
 **Lambda Runtime:**
@@ -249,6 +270,7 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   ├── QUICK_REFERENCE.md # Command cheat sheet
 │   └── SUMMARY.md         # Quick overview
 ├── scripts/                # Deployment & utility scripts
+│   ├── deploy.sh                # Unified deployment script (frontend/backend)
 │   ├── configure-s3-trigger.sh  # Set up S3 Lambda trigger
 │   ├── migrate-books.py         # Migrate S3 books to DynamoDB
 │   ├── migrate-bucket.py        # S3 bucket migration tool
@@ -266,6 +288,7 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │       ├── conftest.py             # Test fixtures & authentication
 │       └── README.md               # E2E test documentation
 ├── docs/                  # Documentation
+│   ├── DEPLOYMENT.md           # Unified deployment guide (deploy.sh)
 │   ├── TERRAFORM_SETUP.md      # Complete Terraform workflow guide
 │   ├── CONFIGURATION.md        # Configuration reference
 │   ├── MANUAL_DEPLOYMENT.md    # Manual deployment guide (alternative to Terraform)
@@ -278,6 +301,7 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   └── openapi.yaml            # OpenAPI 3.0 specification
 ├── template.yaml           # SAM CloudFormation template
 ├── samconfig.toml.example # SAM deployment config template
+├── .deploy-config.example # Deployment script config template
 ├── .env.example           # E2E test credentials template
 ├── run-e2e-tests.sh       # E2E test runner script
 ├── Makefile               # Automated deployment commands

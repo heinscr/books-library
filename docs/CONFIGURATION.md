@@ -11,6 +11,7 @@ This document explains how to configure the Books Library application for your e
 All configuration files with actual values are included in `.gitignore`:
 - `samconfig.toml` - SAM deployment configuration
 - `frontend/config.js` - Frontend API configuration
+- `.deploy-config` - Deployment script configuration
 - `.env` files - Environment variables
 
 ## Configuration Files
@@ -68,7 +69,43 @@ const API_URL = 'https://abc123.execute-api.us-east-2.amazonaws.com/Prod/books';
 - After running `sam deploy`, the API URL is in the outputs
 - Cognito values are from your AWS Cognito User Pool
 
-### 3. Script Configuration
+### 3. Deployment Configuration (`.deploy-config`)
+
+**Setup:**
+```bash
+# Copy the example file
+cp .deploy-config.example .deploy-config
+
+# Edit with your values
+nano .deploy-config
+```
+
+**Required Values:**
+- `AWS_PROFILE` - AWS CLI profile name
+- `AWS_REGION` - AWS region (e.g., `us-east-2`)
+- `FRONTEND_BUCKET` - S3 bucket for frontend
+- `FRONTEND_PATH` - Path within bucket (e.g., `books-app`)
+- `BOOKS_BUCKET` - S3 bucket for book storage
+- `CLOUDFRONT_DIST_1` - Primary CloudFront distribution ID
+- `CLOUDFRONT_DIST_2` - Secondary CloudFront distribution ID (if applicable)
+- `CLOUDFRONT_URL` - CloudFront URL (e.g., `https://abc123.cloudfront.net`)
+- `AUTO_INVALIDATE` - Automatic cache invalidation (true/false)
+
+**Example:**
+```bash
+AWS_PROFILE=my-profile
+AWS_REGION=us-east-2
+FRONTEND_BUCKET=my-bucket
+FRONTEND_PATH=books-app
+CLOUDFRONT_DIST_1=E1234567890ABC
+CLOUDFRONT_URL=https://d1234abcd.cloudfront.net
+AUTO_INVALIDATE=true
+```
+
+**Usage:**
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for deployment using this configuration.
+
+### 4. Script Configuration
 
 The helper scripts (`scripts/configure-s3-trigger.sh` and `scripts/migrate-books.py`) use environment variables:
 

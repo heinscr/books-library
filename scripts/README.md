@@ -2,7 +2,28 @@
 
 This directory contains helper scripts for deploying and maintaining the Books Library application.
 
-## Scripts Overview
+## Deployment
+
+### `deploy.sh`
+Unified deployment script for consistent frontend and backend deployment.
+
+**Quick Usage:**
+```bash
+# Setup (one-time)
+cp .deploy-config.example .deploy-config
+# Edit .deploy-config with your values
+
+# Deploy
+./scripts/deploy.sh --frontend --invalidate
+./scripts/deploy.sh --backend
+./scripts/deploy.sh --all --invalidate
+```
+
+**For complete deployment guide, see [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md)**
+
+---
+
+## Maintenance Scripts
 
 ### `populate-authors.py`
 Automatically populates missing author names in DynamoDB by looking up book metadata from Google Books API and Open Library API.

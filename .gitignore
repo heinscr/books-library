@@ -49,6 +49,9 @@ jwt_token
 .env  # E2E test credentials (see .env.example)
 .env.local
 
+# Deployment configuration (environment-specific)
+.deploy-config
+
 # Frontend configuration (contains credentials)
 frontend/config.js
 
