@@ -45,12 +45,18 @@ function showBookDetailsModal(book) {
     document.getElementById('editSeriesName').value = book.series_name || '';
     document.getElementById('editSeriesOrder').value = book.series_order || '';
 
-    // Show/hide delete button based on admin status
-    const deleteButton = document.getElementById('deleteBookButton');
+    // Show/hide more options menu based on admin status
+    const moreOptionsContainer = document.getElementById('moreOptionsContainer');
     if (window.isUserAdmin) {
-        deleteButton.style.display = 'inline-block';
+        moreOptionsContainer.style.display = 'block';
     } else {
-        deleteButton.style.display = 'none';
+        moreOptionsContainer.style.display = 'none';
+    }
+
+    // Close dropdown menu if it was open
+    const deleteMenu = document.getElementById('deleteMenu');
+    if (deleteMenu) {
+        deleteMenu.style.display = 'none';
     }
 
     // Show modal
@@ -73,11 +79,15 @@ function closeBookDetailsModal() {
     document.getElementById('bookDetailsModal').style.display = 'none';
     currentEditingBook = null;
 
-    // Reset delete button state
-    const deleteButton = document.getElementById('deleteBookButton');
-    if (deleteButton) {
-        deleteButton.disabled = false;
-        deleteButton.textContent = '🗑️ Delete Book';
+    // Close dropdown menu if open
+    const deleteMenu = document.getElementById('deleteMenu');
+    if (deleteMenu) {
+        deleteMenu.style.display = 'none';
+    }
+
+    const moreOptionsButton = document.getElementById('moreOptionsButton');
+    if (moreOptionsButton) {
+        moreOptionsButton.setAttribute('aria-expanded', 'false');
     }
 
     // Return focus to element that opened the modal
@@ -260,7 +270,41 @@ async function deleteBook() {
     } catch (error) {
         showAlert(`❌ Failed to delete: ${error.message}`, 'error');
         console.error('Error deleting book:', error);
-        deleteButton.disabled = false;
-        deleteButton.textContent = '🗑️ Delete Book';
     }
 }
+
+function toggleDeleteMenu(event) {
+    event.stopPropagation();
+
+    const deleteMenu = document.getElementById('deleteMenu');
+    const moreOptionsButton = document.getElementById('moreOptionsButton');
+    const isOpen = deleteMenu.style.display === 'block';
+
+    if (isOpen) {
+        deleteMenu.style.display = 'none';
+        moreOptionsButton.setAttribute('aria-expanded', 'false');
+    } else {
+        deleteMenu.style.display = 'block';
+        moreOptionsButton.setAttribute('aria-expanded', 'true');
+
+        // Focus first menu item for keyboard accessibility
+        const firstMenuItem = deleteMenu.querySelector('.menu-item-danger');
+        if (firstMenuItem) {
+            setTimeout(() => firstMenuItem.focus(), 100);
+        }
+    }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const moreOptionsContainer = document.getElementById('moreOptionsContainer');
+    const deleteMenu = document.getElementById('deleteMenu');
+    const moreOptionsButton = document.getElementById('moreOptionsButton');
+
+    if (moreOptionsContainer && deleteMenu && moreOptionsButton) {
+        if (!moreOptionsContainer.contains(event.target)) {
+            deleteMenu.style.display = 'none';
+            moreOptionsButton.setAttribute('aria-expanded', 'false');
+        }
+    }
+});

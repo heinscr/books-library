@@ -253,17 +253,16 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   ├── migrate-books.py         # Migrate S3 books to DynamoDB
 │   ├── migrate-bucket.py        # S3 bucket migration tool
 │   ├── populate-authors.py      # Populate Authors table
-│   ├── refactor_frontend.py     # Frontend refactoring tool
-│   ├── refactor_css.py          # CSS refactoring tool
+│   ├── backfill-covers.py       # Backfill book covers from Google Books
 │   ├── lint.sh                  # Code quality checks
 │   └── README.md                # Scripts documentation
-├── tests/                  # Test suite (163 tests total)
+├── tests/                  # Test suite (170 tests total)
 │   ├── test_handler.py    # Backend unit tests (82 tests)
 │   ├── test_utils.py      # Utility module tests (38 tests, 100% coverage)
-│   └── e2e/               # End-to-end frontend tests (43 tests, Playwright)
+│   └── e2e/               # End-to-end frontend tests (50 tests, Playwright)
 │       ├── test_authentication.py  # Login/logout tests (12 tests)
 │       ├── test_book_grid.py       # Display/filtering tests (13 tests)
-│       ├── test_book_operations.py # Modal/editing tests (18 tests)
+│       ├── test_book_operations.py # Modal/editing/delete tests (25 tests)
 │       ├── conftest.py             # Test fixtures & authentication
 │       └── README.md               # E2E test documentation
 ├── docs/                  # Documentation
@@ -273,9 +272,8 @@ See [`docs/TERRAFORM_SETUP.md`](docs/TERRAFORM_SETUP.md) for the complete step-b
 │   ├── DYNAMODB_MIGRATION.md   # DynamoDB migration documentation
 │   ├── S3_BUCKET_MIGRATION.md  # S3 bucket migration guide
 │   ├── USER_TRACKING_GUIDE.md  # Per-user tracking feature guide
-│   ├── TESTING.md              # Testing guide (163 tests, all passing)
+│   ├── TESTING.md              # Testing guide (170 tests)
 │   ├── E2E_TEST_SETUP.md       # E2E setup & troubleshooting
-│   ├── TEST_STATUS.md          # Current test status
 │   ├── api-docs.html           # Swagger UI for API
 │   └── openapi.yaml            # OpenAPI 3.0 specification
 ├── template.yaml           # SAM CloudFormation template
@@ -492,9 +490,9 @@ Generates a presigned PUT URL for uploading books directly to S3 (up to 5GB). **
 
 ## 🧪 Testing & Code Quality
 
-**Test Coverage: 163 tests, all passing** ✅
+**Test Coverage: 170 tests** ✅
 - Backend Unit Tests: 120 tests (93% code coverage)
-- E2E Tests: 43 tests (Playwright)
+- E2E Tests: 50 tests (Playwright)
 
 ### Backend Unit Tests
 
@@ -523,10 +521,11 @@ PYTHONPATH=. pipenv run pytest --cov=gateway_backend --cov-report=term-missing
 
 Frontend tests using Playwright to verify complete user workflows.
 
-**Coverage:** 43 E2E tests covering:
+**Coverage:** 50 E2E tests covering:
 - Authentication (login, logout, user menu) - 12 tests
 - Book grid display and filtering - 13 tests
-- Book operations (edit, delete, download) - 18 tests
+- Book operations (edit, delete, download) - 25 tests
+  - Includes 7 new tests for overflow menu delete functionality
 - Keyboard navigation and accessibility
 
 ```bash

@@ -156,7 +156,29 @@
          aria-describedby="bookDetailsModalDesc">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="bookDetailsModalTitle">Book Details</h2>
+                <div class="modal-header-left">
+                    <h2 id="bookDetailsModalTitle">Book Details</h2>
+                    <div class="more-options-container" id="moreOptionsContainer" style="display: none;">
+                        <button class="btn-text more-options-btn"
+                                id="moreOptionsButton"
+                                onclick="toggleDeleteMenu(event)"
+                                aria-label="More options"
+                                aria-expanded="false"
+                                aria-haspopup="true">
+                            <span aria-hidden="true">⋮</span>
+                            <span class="sr-only">More options</span>
+                        </button>
+                        <div id="deleteMenu" class="dropdown-menu" role="menu" style="display: none;">
+                            <button class="menu-item-danger"
+                                    onclick="deleteBook()"
+                                    role="menuitem"
+                                    aria-label="Delete book permanently">
+                                <span aria-hidden="true">🗑️</span>
+                                <span>Delete Book</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <button class="close-btn"
                         onclick="closeBookDetailsModal()"
                         aria-label="Close book details dialog">
@@ -194,11 +216,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-danger" id="deleteBookButton" onclick="deleteBook()" style="display: none;">🗑️ Delete Book</button>
-                <div class="modal-footer-right">
-                    <button class="btn-secondary" onclick="closeBookDetailsModal()">Cancel</button>
-                    <button class="btn-primary" id="saveDetailsButton" onclick="saveBookDetails()">Save Changes</button>
-                </div>
+                <button class="btn-secondary" onclick="closeBookDetailsModal()">Cancel</button>
+                <button class="btn-primary" id="saveDetailsButton" onclick="saveBookDetails()">Save Changes</button>
             </div>
         </div>
     </div>

@@ -394,3 +394,165 @@ class TestBookAccessibility:
         assert modal.get_attribute("role") == "dialog"
         assert modal.get_attribute("aria-modal") == "true"
         assert modal.get_attribute("aria-labelledby") is not None
+
+
+class TestDeleteOverflowMenu:
+    """Tests for the overflow menu delete functionality (admin only)"""
+
+    def test_more_options_button_visible_for_admin(self, authenticated_page):
+        """Test that the more options button is visible for admin users."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        # More options button should be visible for admin
+        more_options_container = page.locator("#moreOptionsContainer")
+        assert more_options_container.is_visible(), "More options container should be visible for admin users"
+
+        more_options_button = page.locator("#moreOptionsButton")
+        assert more_options_button.is_visible(), "More options button should be visible"
+
+    def test_more_options_button_has_aria_attributes(self, authenticated_page):
+        """Test that the more options button has proper ARIA attributes."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        more_options_button = page.locator("#moreOptionsButton")
+
+        # Check ARIA attributes
+        assert more_options_button.get_attribute("aria-label") is not None
+        assert more_options_button.get_attribute("aria-expanded") == "false"
+        assert more_options_button.get_attribute("aria-haspopup") == "true"
+
+    def test_delete_menu_opens_on_click(self, authenticated_page):
+        """Test that the delete menu opens when clicking the more options button."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        # Menu should be hidden initially
+        delete_menu = page.locator("#deleteMenu")
+        assert not delete_menu.is_visible(), "Delete menu should be hidden initially"
+
+        # Click more options button
+        more_options_button = page.locator("#moreOptionsButton")
+        more_options_button.click()
+
+        # Menu should now be visible
+        page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
+        assert delete_menu.is_visible(), "Delete menu should be visible after clicking"
+
+        # ARIA expanded should be true
+        assert more_options_button.get_attribute("aria-expanded") == "true"
+
+    def test_delete_menu_closes_on_second_click(self, authenticated_page):
+        """Test that the delete menu closes when clicking the button again."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        more_options_button = page.locator("#moreOptionsButton")
+        delete_menu = page.locator("#deleteMenu")
+
+        # Open menu
+        more_options_button.click()
+        page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
+
+        # Close menu
+        more_options_button.click()
+        page.wait_for_timeout(300)
+
+        # Menu should be hidden
+        assert not delete_menu.is_visible(), "Delete menu should be hidden after second click"
+        assert more_options_button.get_attribute("aria-expanded") == "false"
+
+    def test_delete_menu_has_delete_button(self, authenticated_page):
+        """Test that the delete menu contains a delete button."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        # Open menu
+        more_options_button = page.locator("#moreOptionsButton")
+        more_options_button.click()
+        page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
+
+        # Check for delete button
+        delete_button = page.locator(".menu-item-danger")
+        assert delete_button.is_visible(), "Delete button should be visible in menu"
+
+        # Check button text
+        button_text = delete_button.text_content()
+        assert "Delete" in button_text, "Delete button should contain 'Delete' text"
+
+    def test_delete_menu_closes_on_outside_click(self, authenticated_page):
+        """Test that the delete menu closes when clicking outside."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        more_options_button = page.locator("#moreOptionsButton")
+        delete_menu = page.locator("#deleteMenu")
+
+        # Open menu
+        more_options_button.click()
+        page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
+
+        # Click outside the menu (on modal body)
+        page.locator(".modal-body").click()
+        page.wait_for_timeout(300)
+
+        # Menu should be hidden
+        assert not delete_menu.is_visible(), "Delete menu should close when clicking outside"
+
+    def test_delete_menu_closes_on_modal_close(self, authenticated_page):
+        """Test that the delete menu is closed when reopening the modal."""
+        page = authenticated_page
+
+        # Open a book details modal
+        page.wait_for_selector(".book-card", timeout=10000)
+        first_card = page.locator(".book-card").first
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        # Open menu
+        more_options_button = page.locator("#moreOptionsButton")
+        more_options_button.click()
+        page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
+
+        # Close modal
+        page.locator(".close-btn").click()
+        page.wait_for_selector("#bookDetailsModal", state="hidden", timeout=2000)
+
+        # Reopen modal
+        first_card.click()
+        page.wait_for_selector("#bookDetailsModal", state="visible", timeout=5000)
+
+        # Menu should be closed
+        delete_menu = page.locator("#deleteMenu")
+        assert not delete_menu.is_visible(), "Delete menu should be closed when modal reopens"

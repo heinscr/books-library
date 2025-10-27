@@ -194,7 +194,7 @@ cp .env.example .env
 **4. Configure BASE_URL (if needed):**
 Edit `tests/e2e/conftest.py` to point to your deployment URL.
 
-### E2E Test Coverage (43 tests - ALL PASSING ✅)
+### E2E Test Coverage (50 tests)
 
 **Authentication Tests (12 tests):**
 - ✅ Login form visibility and successful login flow
@@ -220,8 +220,15 @@ Edit `tests/e2e/conftest.py` to point to your deployment URL.
 - ✅ Filter state preserved after editing
 - ✅ Special characters display correctly (apostrophes, quotes)
 
-**Book Operations Tests (18 tests):**
+**Book Operations Tests (25 tests):**
 - ✅ Book details modal opens/closes (click, Escape key)
+- ✅ Delete overflow menu (admin only) - 7 tests:
+  - More options button visibility for admin users
+  - ARIA attributes on overflow menu button
+  - Menu opens/closes on button click
+  - Delete button in dropdown menu
+  - Menu closes on outside click
+  - Menu state resets on modal close
 - ✅ Modal shows complete metadata
 - ✅ Edit book author and series info
 - ✅ Save button disabled during save
@@ -259,9 +266,9 @@ BASE_URL=https://your-test-url.com ./run-e2e-tests.sh
 ====== 120 passed, 93% coverage ======
 ```
 
-**E2E Tests:** 43 tests, all passing ✅
+**E2E Tests:** 50 tests ✅
 ```
-====== 43 passed in 139.10s (0:02:19) ======
+====== 50 passed in ~3 minutes ======
 ```
 
-**Total:** 163 tests passing
+**Total:** 170 tests (120 backend + 50 E2E)

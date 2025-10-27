@@ -143,10 +143,12 @@ PYTHONPATH=. pipenv run pytest -m e2e
 ### Test Organization
 
 Tests are organized by feature/functionality:
-- `test_authentication.py`: Login, logout, session management, auth UI
-- `test_book_grid.py`: Book display, grid layout, filtering, grouping
-- `test_book_operations.py`: Book details modal, editing, read toggle, download, accessibility
+- `test_authentication.py`: Login, logout, session management, auth UI (12 tests)
+- `test_book_grid.py`: Book display, grid layout, filtering, grouping (13 tests)
+- `test_book_operations.py`: Book details modal, editing, read toggle, download, accessibility, delete menu (25 tests)
 - More test files can be added as needed
+
+**Total: 50 E2E tests** (7 new tests added for overflow menu delete functionality)
 
 ## Writing Tests
 
