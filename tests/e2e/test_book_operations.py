@@ -523,8 +523,8 @@ class TestDeleteOverflowMenu:
         more_options_button.click()
         page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
 
-        # Click outside the menu (on modal body)
-        page.locator(".modal-body").click()
+        # Click outside the menu (on modal body within book details modal)
+        page.locator("#bookDetailsModal .modal-body").click()
         page.wait_for_timeout(300)
 
         # Menu should be hidden
@@ -545,8 +545,8 @@ class TestDeleteOverflowMenu:
         more_options_button.click()
         page.wait_for_selector("#deleteMenu", state="visible", timeout=2000)
 
-        # Close modal
-        page.locator(".close-btn").click()
+        # Close modal (using specific button in book details modal)
+        page.locator("#bookDetailsModal .close-btn").click()
         page.wait_for_selector("#bookDetailsModal", state="hidden", timeout=2000)
 
         # Reopen modal
