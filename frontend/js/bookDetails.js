@@ -227,14 +227,22 @@ async function deleteBook() {
         showAlert('❌ Not authenticated. Please log in.', 'error');
         return;
     }
-    
-    const deleteButton = document.getElementById('deleteBookButton');
-    
+
+    // Get the delete menu item button
+    const deleteMenu = document.getElementById('deleteMenu');
+    const deleteMenuItem = deleteMenu ? deleteMenu.querySelector('.menu-item-danger') : null;
+    const deleteMenuTextSpan = deleteMenuItem ? deleteMenuItem.querySelector('span:last-child') : null;
+    const originalText = deleteMenuTextSpan ? deleteMenuTextSpan.textContent : '';
+
     try {
-        // Disable delete button
-        deleteButton.disabled = true;
-        deleteButton.textContent = 'Deleting...';
-        
+        // Disable delete menu item during deletion
+        if (deleteMenuItem) {
+            deleteMenuItem.disabled = true;
+            if (deleteMenuTextSpan) {
+                deleteMenuTextSpan.textContent = 'Deleting...';
+            }
+        }
+
         // Call DELETE /books/{id}
         const bookId = encodeURIComponent(currentEditingBook.id);
         const response = await fetch(`${API_URL}/${bookId}`, {
@@ -243,31 +251,45 @@ async function deleteBook() {
                 'Authorization': token
             }
         });
-        
+
         if (response.status === 401 || response.status === 403) {
             const refreshed = await refreshAuthToken();
             if (refreshed) {
+                // Re-enable button before retry
+                if (deleteMenuItem) {
+                    deleteMenuItem.disabled = false;
+                    if (deleteMenuTextSpan) {
+                        deleteMenuTextSpan.textContent = originalText;
+                    }
+                }
                 return deleteBook(); // Retry with new token
             } else {
                 throw new Error('Session expired. Please log in again.');
             }
         }
-        
+
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
         }
-        
+
         // Remove the book from local allBooks array
         allBooks = allBooks.filter(b => b.id !== currentEditingBook.id);
-        
+
         // Re-render with current filter state preserved
         applyFilters();
-        
+
         showAlert('✅ Book deleted successfully', 'success');
         closeBookDetailsModal();
-        
+
     } catch (error) {
+        // Re-enable delete menu item on error
+        if (deleteMenuItem) {
+            deleteMenuItem.disabled = false;
+            if (deleteMenuTextSpan) {
+                deleteMenuTextSpan.textContent = originalText;
+            }
+        }
         showAlert(`❌ Failed to delete: ${error.message}`, 'error');
         console.error('Error deleting book:', error);
     }
