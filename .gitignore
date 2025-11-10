@@ -65,3 +65,4 @@ terraform/terraform.tfvars
 terraform/.terraform.tfstate.lock.info
 terraform/crash.log
 terraform-outputs.txt
+.env
